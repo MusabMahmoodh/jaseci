@@ -82,3 +82,4 @@ Once you complete this guide, if you want to dive deeper into React concepts (th
 
 These resources will help you understand the underlying React patterns that Jac uses, but they're **not required** to build great apps with Jac!
 
+
