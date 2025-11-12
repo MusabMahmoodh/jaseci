@@ -8,27 +8,18 @@ node Todo {
 
 walker create_todo {
     has text:str;
-    class __specs__ {
-        has auth: bool = False;
-    }
     can create with `root entry {
         new_todo = here ++> Todo(text= self.text);
         report new_todo;
     }
 }
 walker toggle_todo {
-    class __specs__ {
-        has auth: bool = False;
-    }
     can toggle with Todo entry {
         here.done = not here.done;
         report here;
     }
 }
 walker read_todos {
-    class __specs__ {
-        has auth: bool = False;
-    }
     can read with `root entry {
         visit [-->(`?Todo)];
     }
