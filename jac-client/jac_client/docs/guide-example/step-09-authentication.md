@@ -78,14 +78,14 @@ cl {
                 return {"success": False, "error": "Invalid credentials"};
             }
         }
-        
+
         # Signup function
         async def signup(username: str, password: str, confirmPassword: str) -> dict {
             # Validate passwords match
             if password != confirmPassword {
                 return {"success": False, "error": "Passwords do not match"};
             }
-            
+
             try {
                 result = await jacSignup(username, password);
                 if result {
@@ -96,17 +96,17 @@ cl {
                 return {"success": False, "error": err.toString()};
             }
         }
-        
+
         # Logout function
         def logout() -> None {
             jacLogout();
         }
-        
+
         # Check if authenticated
         def isAuthenticated() -> bool {
             return jacIsLoggedIn();
         }
-        
+
         # Return all auth functions
         return {
             "login": login,
@@ -131,15 +131,15 @@ class AuthService:
     def login(self, username, password):
         # Handle login
         pass
-    
+
     def signup(self, username, password):
         # Handle signup
         pass
-    
+
     def logout(self):
         # Handle logout
         pass
-    
+
     def is_authenticated(self):
         # Check if logged in
         pass
@@ -161,20 +161,20 @@ cl {
             "loading": False,
             "error": ""
         });
-        
+
         let navigate = useNavigate();
         let auth = useAuth();
-        
+
         # Redirect if already logged in
         useEffect(lambda -> None {
             if jacIsLoggedIn() {
                 navigate("/dashboard");
             }
         }, []);
-        
+
         async def handleSubmit(event: any) -> None {
             event.preventDefault();  # Prevent form submission reload
-            
+
             # Set loading state
             let current = state;
             setState({
@@ -183,14 +183,14 @@ cl {
                 "loading": True,
                 "error": ""
             });
-            
+
             try {
                 # Attempt login
                 let result = await auth["login"](
                     current["username"],
                     current["password"]
                 );
-                
+
                 if result["success"] {
                     # Success - redirect to dashboard
                     navigate("/dashboard");
@@ -212,7 +212,7 @@ cl {
                 });
             }
         }
-        
+
         return <div style={{
             "display": "flex",
             "justifyContent": "center",
@@ -243,7 +243,7 @@ cl {
                 }}>
                     Sign in to access your todos
                 </p>
-                
+
                 {/* Error Message */}
                 {(state["error"] != "") ? (
                     <div style={{
@@ -257,7 +257,7 @@ cl {
                         {state["error"]}
                     </div>
                 ) : <span></span>}
-                
+
                 {/* Login Form */}
                 <form onSubmit={handleSubmit} style={{
                     "display": "flex",
@@ -299,7 +299,7 @@ cl {
                             required={True}
                         />
                     </label>
-                    
+
                     {/* Password */}
                     <label style={{
                         "display": "flex",
@@ -335,7 +335,7 @@ cl {
                             required={True}
                         />
                     </label>
-                    
+
                     {/* Submit Button */}
                     <button
                         type="submit"
@@ -355,7 +355,7 @@ cl {
                         {(("Signing in..." if state["loading"] else "Sign in"))}
                     </button>
                 </form>
-                
+
                 {/* Signup Link */}
                 <p style={{
                     "marginTop": "24px",
@@ -390,20 +390,20 @@ cl {
             "loading": False,
             "error": ""
         });
-        
+
         let navigate = useNavigate();
         let auth = useAuth();
-        
+
         # Redirect if already logged in
         useEffect(lambda -> None {
             if jacIsLoggedIn() {
                 navigate("/dashboard");
             }
         }, []);
-        
+
         async def handleSubmit(event: any) -> None {
             event.preventDefault();
-            
+
             let current = state;
             setState({
                 "username": current["username"],
@@ -412,14 +412,14 @@ cl {
                 "loading": True,
                 "error": ""
             });
-            
+
             try {
                 let result = await auth["signup"](
                     current["username"],
                     current["password"],
                     current["confirmPassword"]
                 );
-                
+
                 if result["success"] {
                     # Success - redirect to dashboard
                     navigate("/dashboard");
@@ -442,7 +442,7 @@ cl {
                 });
             }
         }
-        
+
         return <div style={{
             "maxWidth": "420px",
             "margin": "48px auto",
@@ -464,7 +464,7 @@ cl {
             }}>
                 Join us to start managing your todos
             </p>
-            
+
             {/* Error */}
             {(state["error"] != "") ? (
                 <div style={{
@@ -477,7 +477,7 @@ cl {
                     {state["error"]}
                 </div>
             ) : <span></span>}
-            
+
             <form onSubmit={handleSubmit} style={{
                 "display": "grid",
                 "gap": "16px"
@@ -509,7 +509,7 @@ cl {
                         required={True}
                     />
                 </label>
-                
+
                 {/* Password */}
                 <label>
                     <span style={{"fontSize": "14px", "fontWeight": "600"}}>
@@ -537,7 +537,7 @@ cl {
                         required={True}
                     />
                 </label>
-                
+
                 {/* Confirm Password */}
                 <label>
                     <span style={{"fontSize": "14px", "fontWeight": "600"}}>
@@ -565,7 +565,7 @@ cl {
                         required={True}
                     />
                 </label>
-                
+
                 <button
                     type="submit"
                     disabled={state["loading"]}
@@ -583,7 +583,7 @@ cl {
                     {(("Creating account..." if state["loading"] else "Create Account"))}
                 </button>
             </form>
-            
+
             <p style={{
                 "marginTop": "16px",
                 "textAlign": "center",
@@ -624,10 +624,10 @@ cl {
             <Routes>
                 <Route path="/login" component={LoginPage} />
                 <Route path="/signup" component={SignupPage} />
-                
+
                 {/* Protected route */}
-                <Route 
-                    path="/dashboard" 
+                <Route
+                    path="/dashboard"
                     component={DashboardPage}
                     guard={jacIsLoggedIn}  # Requires login!
                 />
@@ -651,12 +651,12 @@ cl {
         let navigate = useNavigate();
         let auth = useAuth();
         let isLoggedIn = jacIsLoggedIn();
-        
+
         def handleLogout() -> None {
             auth["logout"]();
             navigate("/login");
         }
-        
+
         return <header style={{
             "backgroundColor": "#ffffff",
             "borderBottom": "1px solid #e5e7eb",
@@ -670,7 +670,7 @@ cl {
                 "alignItems": "center"
             }}>
                 <h1>Todo App</h1>
-                
+
                 {(
                     <button onClick={lambda -> None { handleLogout(); }} style={{
                         "padding": "8px 16px",
@@ -730,11 +730,11 @@ walker read_todos {
     class __specs__ {
         has auth: bool = True;  # This ensures isolation!
     }
-    
+
     can read with `root entry {
         visit [-->(`?Todo)];
     }
-    
+
     can report_todos with exit {
         report here;
     }
@@ -753,7 +753,7 @@ When `auth: bool = True`:
 ```jac
 def HomePage() -> any {
     let isLoggedIn = jacIsLoggedIn();
-    
+
     return <div>
         {(
             <Link to="/dashboard">Go to Dashboard</Link>

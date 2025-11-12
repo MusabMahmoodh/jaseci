@@ -167,8 +167,8 @@ cl {
             "border": "1px solid #e5e7eb",
             "marginBottom": "8px"
         }}>
-            <input 
-                type="checkbox" 
+            <input
+                type="checkbox"
                 checked={completed}
                 style={{
                     "width": "20px",
@@ -213,7 +213,7 @@ cl {
             }}>
                 My Todos
             </h1>
-            
+
             <TodoItem text="Learn Jac" completed={True} />
             <TodoItem text="Build Todo App" completed={False} />
             <TodoItem text="Deploy App" completed={False} />
@@ -231,7 +231,7 @@ cl {
     def StatusBadge(status: str) -> any {
         let bgColor = "gray";
         let textColor = "white";
-        
+
         if status == "completed" {
             bgColor = "#22c55e";  # Green
         } elif status == "pending" {
@@ -239,7 +239,7 @@ cl {
         } elif status == "urgent" {
             bgColor = "#ef4444";  # Red
         }
-        
+
         return <span style={{
             "padding": "4px 12px",
             "backgroundColor": bgColor,
@@ -278,7 +278,7 @@ cl {
             "cursor": "pointer",
             "fontWeight": "600"
         };
-        
+
         let primaryButtonStyle = {
             "padding": buttonStyle["padding"],
             "border": buttonStyle["border"],
@@ -289,7 +289,7 @@ cl {
             "backgroundColor": "#3b82f6",
             "color": "white"
         };
-        
+
         let dangerButtonStyle = {
             "padding": buttonStyle["padding"],
             "border": buttonStyle["border"],
@@ -300,7 +300,7 @@ cl {
             "backgroundColor": "#ef4444",
             "color": "white"
         };
-        
+
         return <div>
             <button style={primaryButtonStyle}>Save</button>
             <button style={dangerButtonStyle}>Delete</button>
@@ -331,7 +331,7 @@ cl {
             }}>
                 <h1>Header</h1>
             </div>
-            
+
             {/* Content */}
             <div style={{
                 "display": "flex",

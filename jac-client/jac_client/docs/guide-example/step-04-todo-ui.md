@@ -477,7 +477,7 @@ What if there are no todos? Let's add that:
 ```jac
 def TodoList() -> any {
     let hasTodos = False;  # We'll make this dynamic later
-    
+
     if hasTodos {
         return <div style={{
             "backgroundColor": "#ffffff",

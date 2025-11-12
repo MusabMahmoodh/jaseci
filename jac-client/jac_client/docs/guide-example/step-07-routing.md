@@ -102,7 +102,7 @@ cl {
                         About
                     </Link>
                 </nav>
-                
+
                 {/* Routes */}
                 <Routes>
                     <Route path="/" component={HomePage} />
@@ -173,14 +173,14 @@ cl {
         let [username, setUsername] = useState("");
         let [password, setPassword] = useState("");
         let navigate = useNavigate();
-        
+
         def handleLogin(event: any) -> None {
             event.preventDefault();
             console.log("Login:", username, password);
             # We'll implement real auth later!
             navigate("/dashboard");
         }
-        
+
         return <div style={{
             "maxWidth": "400px",
             "margin": "50px auto",
@@ -256,7 +256,7 @@ cl {
         let [todos, setTodos] = useState([
             {"id": 1, "text": "Welcome to your dashboard!", "done": False}
         ]);
-        
+
         return <div style={{"maxWidth": "720px", "margin": "20px auto", "padding": "20px"}}>
             <div style={{
                 "display": "flex",
@@ -269,7 +269,7 @@ cl {
                     Logout
                 </Link>
             </div>
-            
+
             <div>
                 {todos.map(lambda todo: any -> any {
                     return <div key={todo["id"]} style={{
@@ -306,14 +306,14 @@ Sometimes you need to navigate from code (not a link click):
 ```jac
 def LoginPage() -> any {
     let navigate = useNavigate();  # Get navigation function
-    
+
     def handleLogin() -> None {
         # Do login logic...
-        
+
         # Navigate to dashboard
         navigate("/dashboard");
     }
-    
+
     return <button onClick={lambda -> None { handleLogin(); }}>
         Login
     </button>;
@@ -367,10 +367,10 @@ cl {
             <Routes>
                 <Route path="/" component={HomePage} />
                 <Route path="/login" component={LoginPage} />
-                
+
                 {/* Protected route with guard */}
-                <Route 
-                    path="/dashboard" 
+                <Route
+                    path="/dashboard"
                     component={DashboardPage}
                     guard={jacIsLoggedIn}  # Only accessible if logged in
                 />
@@ -438,7 +438,7 @@ cl {
         return <Router defaultRoute="/">
             <div>
                 <Header />  {/* Shows on all pages */}
-                
+
                 <main style={{"minHeight": "calc(100vh - 64px)"}}>
                     <Routes>
                         <Route path="/" component={HomePage} />
@@ -462,7 +462,7 @@ cl import from "@jac-client/utils" {useLocation}
 def NavLink(to: str, text: str) -> any {
     let location = useLocation();  # Get current URL
     let isActive = location.pathname == to;
-    
+
     return <Link to={to} style={{
         "padding": "8px 16px",
         "textDecoration": "none",
@@ -542,7 +542,7 @@ def MainLayout() -> any {
 ```jac
 def Header() -> any {
     let isLoggedIn = jacIsLoggedIn();
-    
+
     return <nav>
         <Link to="/">Home</Link>
         {(

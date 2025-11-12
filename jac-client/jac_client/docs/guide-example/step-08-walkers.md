@@ -78,13 +78,13 @@ walker read_todos {
     class __specs__ {
         has auth: bool = True;
     }
-    
+
     # Entry point: runs when walker starts at root
     can read with `root entry {
         # Visit all Todo nodes connected to root
         visit [-->(`?Todo)];
     }
-    
+
     # Runs when walker finishes
     can report_todos with exit {
         # Report all todos back to client
@@ -121,15 +121,15 @@ Let's create a walker that adds new todos:
 walker create_todo {
     # Parameters that frontend passes
     has text: str;
-    
+
     class __specs__ {
         has auth: bool = True;
     }
-    
+
     can create with `root entry {
         # Create new Todo node and connect it to root
         new_todo = here ++> Todo(text=self.text);
-        
+
         # Report the new todo back to frontend
         report new_todo;
     }
@@ -160,11 +160,11 @@ walker toggle_todo {
     class __specs__ {
         has auth: bool = True;
     }
-    
+
     can toggle with Todo entry {
         # Toggle the done status
         here.done = not here.done;
-        
+
         # Report the updated todo
         report here;
     }
@@ -191,11 +191,11 @@ node Todo {
 # ===== CREATE =====
 walker create_todo {
     has text: str;
-    
+
     class __specs__ {
         has auth: bool = True;
     }
-    
+
     can create with `root entry {
         # Create new todo connected to root
         new_todo = here ++> Todo(text=self.text);
@@ -208,12 +208,12 @@ walker read_todos {
     class __specs__ {
         has auth: bool = True;
     }
-    
+
     can read with `root entry {
         # Visit all todos
         visit [-->(`?Todo)];
     }
-    
+
     can report_todos with exit {
         # Report each todo we visited
         report here;
@@ -225,7 +225,7 @@ walker toggle_todo {
     class __specs__ {
         has auth: bool = True;
     }
-    
+
     can toggle with Todo entry {
         here.done = not here.done;
         report here;
@@ -237,7 +237,7 @@ walker delete_todo {
     class __specs__ {
         has auth: bool = True;
     }
-    
+
     can delete with Todo entry {
         # Disconnect and delete this todo
         del here;
@@ -257,14 +257,14 @@ cl {
     def DashboardPage() -> any {
         let [todos, setTodos] = useState([]);
         let [inputValue, setInputValue] = useState("");
-        
+
         # Load todos when component mounts
         useEffect(lambda -> None {
             async def loadTodos() -> None {
                 try {
                     # Call read_todos walker
                     let response = await __jacSpawn("read_todos", "", {});
-                    
+
                     # Get todos from response
                     let items = response.reports || [];
                     setTodos(items);
@@ -272,25 +272,25 @@ cl {
                     console.error("Error loading todos:", err);
                 }
             }
-            
+
             loadTodos();
         }, []);
-        
+
         # Add new todo
         async def handleAddTodo() -> None {
             if inputValue.trim() == "" {
                 return;
             }
-            
+
             try {
                 # Call create_todo walker with parameters
                 let response = await __jacSpawn("create_todo", "", {
                     "text": inputValue
                 });
-                
+
                 # Get the new todo from response
                 let newTodo = response.reports[0];
-                
+
                 # Update local state
                 setTodos(todos.concat([newTodo]));
                 setInputValue("");
@@ -298,13 +298,13 @@ cl {
                 console.error("Error creating todo:", err);
             }
         }
-        
+
         # Toggle todo completion
         async def handleToggle(todoId: any) -> None {
             try {
                 # Call toggle_todo walker on specific todo node
                 await __jacSpawn("toggle_todo", todoId, {});
-                
+
                 # Update local state
                 let updated = todos.map(lambda todo: any -> any {
                     if todo._jac_id == todoId {
@@ -321,10 +321,10 @@ cl {
                 console.error("Error toggling todo:", err);
             }
         }
-        
+
         return <div style={{"maxWidth": "720px", "margin": "20px auto", "padding": "20px"}}>
             <h1>My Todos</h1>
-            
+
             {/* Input */}
             <div style={{"display": "flex", "gap": "8px", "marginBottom": "16px"}}>
                 <input
@@ -341,7 +341,7 @@ cl {
                     Add
                 </button>
             </div>
-            
+
             {/* Todo List */}
             <div>
                 {todos.map(lambda todo: any -> any {
@@ -442,11 +442,11 @@ walker read_active_todos {
     class __specs__ {
         has auth: bool = True;
     }
-    
+
     can read with `root entry {
         visit [-->(`?Todo)];
     }
-    
+
     can filter with Todo entry {
         # Only report if not done
         if not here.done {
@@ -461,11 +461,11 @@ walker read_active_todos {
 ```jac
 walker update_todo {
     has new_text: str;
-    
+
     class __specs__ {
         has auth: bool = True;
     }
-    
+
     can update with Todo entry {
         here.text = self.new_text;
         report here;
@@ -481,18 +481,18 @@ await __jacSpawn("update_todo", todoId, {"new_text": "Updated text"});
 ```jac
 walker create_todo {
     has text: str;
-    
+
     class __specs__ {
         has auth: bool = True;
     }
-    
+
     can create with `root entry {
         # Validate input
         if self.text.trim() == "" {
             report {"error": "Text cannot be empty"};
             return;
         }
-        
+
         # Check if already exists
         let existing = [-->(`?Todo)];
         for todo in existing {
@@ -501,7 +501,7 @@ walker create_todo {
                 return;
             }
         }
-        
+
         # Create todo
         new_todo = here ++> Todo(text=self.text);
         report {"success": True, "todo": new_todo};
@@ -518,13 +518,13 @@ walker count_todos {
     class __specs__ {
         has auth: bool = True;
     }
-    
+
     can count with `root entry {
         let total = [-->(`?Todo)].length;
         let completed = [-->(`?Todo)].filter(
             lambda t: any -> bool { return t.done; }
         ).length;
-        
+
         report {"total": total, "completed": completed};
     }
 }
@@ -537,11 +537,11 @@ walker clear_completed {
     class __specs__ {
         has auth: bool = True;
     }
-    
+
     can clear with `root entry {
         visit [-->(`?Todo)];
     }
-    
+
     can delete_if_done with Todo entry {
         if here.done {
             del here;
@@ -555,15 +555,15 @@ walker clear_completed {
 ```jac
 walker search_todos {
     has query: str;
-    
+
     class __specs__ {
         has auth: bool = True;
     }
-    
+
     can search with `root entry {
         visit [-->(`?Todo)];
     }
-    
+
     can filter with Todo entry {
         if self.query.lower() in here.text.lower() {
             report here;
