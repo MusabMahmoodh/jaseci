@@ -13,7 +13,7 @@ class TodoApp:
     def __init__(self):
         self.todos = []
         self.load_from_database()  # Side effect: reads from DB
-    
+
     def save_todo(self, todo):
         self.todos.append(todo)
         self.save_to_database()  # Side effect: writes to DB
@@ -100,11 +100,11 @@ cl {
     def app() -> any {
         let [todos, setTodos] = useState([]);
         let [loading, setLoading] = useState(True);
-        
+
         # Run once when component mounts
         useEffect(lambda -> None {
             console.log("App loaded! Fetching todos...");
-            
+
             # Simulate loading delay
             setTimeout(lambda -> None {
                 let mockTodos = [
@@ -115,13 +115,13 @@ cl {
                 setLoading(False);
             }, 1000);
         }, []);  # Empty array = run once
-        
+
         if loading {
             return <div style={{"textAlign": "center", "padding": "50px"}}>
                 <h2>Loading todos...</h2>
             </div>;
         }
-        
+
         return <div style={{"padding": "20px"}}>
             <h1>My Todos</h1>
             <ul>
@@ -152,7 +152,7 @@ cl import from react {useState, useEffect}
 cl {
     def app() -> any {
         let [todos, setTodos] = useState([]);
-        
+
         # Load from localStorage on mount
         useEffect(lambda -> None {
             let saved = localStorage.getItem("todos");
@@ -161,12 +161,12 @@ cl {
                 setTodos(parsed);
             }
         }, []);
-        
+
         # Save to localStorage whenever todos change
         useEffect(lambda -> None {
             localStorage.setItem("todos", JSON.stringify(todos));
         }, [todos]);  # Run when todos change
-        
+
         def addTodo(text: str) -> None {
             let newTodo = {
                 "id": Date.now(),
@@ -176,7 +176,7 @@ cl {
             setTodos(todos.concat([newTodo]));
             # No need to manually save - useEffect handles it!
         }
-        
+
         return <div style={{"padding": "20px"}}>
             <h1>Persistent Todos</h1>
             <button onClick={lambda -> None { addTodo("New Todo"); }}>
@@ -210,7 +210,7 @@ cl {
         let [todos, setTodos] = useState([]);
         let [loading, setLoading] = useState(True);
         let [error, setError] = useState("");
-        
+
         useEffect(lambda -> None {
             async def loadTodos() -> None {
                 try {
@@ -223,18 +223,18 @@ cl {
                     setLoading(False);
                 }
             }
-            
+
             loadTodos();
         }, []);
-        
+
         if loading {
             return <div>Loading...</div>;
         }
-        
+
         if error != "" {
             return <div>Error: {error}</div>;
         }
-        
+
         return <div>
             <h1>Todos from Backend</h1>
             {/* Render todos */}
@@ -253,13 +253,13 @@ You can use multiple `useEffect` hooks for different purposes:
 def app() -> any {
     let [todos, setTodos] = useState([]);
     let [user, setUser] = useState(None);
-    
+
     # Effect 1: Load user data
     useEffect(lambda -> None {
         console.log("Loading user...");
         # Fetch user data
     }, []);
-    
+
     # Effect 2: Load todos when user changes
     useEffect(lambda -> None {
         if user {
@@ -267,7 +267,7 @@ def app() -> any {
             # Fetch todos for this user
         }
     }, [user]);
-    
+
     # Effect 3: Save todos when they change
     useEffect(lambda -> None {
         if todos.length > 0 {
@@ -275,7 +275,7 @@ def app() -> any {
             localStorage.setItem("todos", JSON.stringify(todos));
         }
     }, [todos]);
-    
+
     return <div>...</div>;
 }
 ```
@@ -292,7 +292,7 @@ useEffect(lambda -> None {
     let intervalId = setInterval(lambda -> None {
         console.log("Tick!");
     }, 1000);
-    
+
     # Return a cleanup function
     return lambda -> None {
         clearInterval(intervalId);
@@ -321,30 +321,30 @@ cl {
     def app() -> any {
         let [todos, setTodos] = useState([]);
         let [saving, setSaving] = useState(False);
-        
+
         useEffect(lambda -> None {
             setSaving(True);
-            
+
             # Debounce: wait a bit before saving
             let timerId = setTimeout(lambda -> None {
                 localStorage.setItem("todos", JSON.stringify(todos));
                 setSaving(False);
             }, 500);
-            
+
             # Cleanup: cancel save if todos change again quickly
             return lambda -> None {
                 clearTimeout(timerId);
             };
         }, [todos]);
-        
+
         def addTodo(text: str) -> None {
             let newTodo = {"id": Date.now(), "text": text, "done": False};
             setTodos(todos.concat([newTodo]));
         }
-        
+
         return <div style={{"padding": "20px"}}>
             <h1>Auto-Save Todos</h1>
-            
+
             {/* Save indicator */}
             <div style={{
                 "padding": "10px",
@@ -354,11 +354,11 @@ cl {
             }}>
                 {(("💾 Saving..." if saving else "✅ Saved!"))}
             </div>
-            
+
             <button onClick={lambda -> None { addTodo("Test todo"); }}>
                 Add Todo
             </button>
-            
+
             <ul>
                 {todos.map(lambda todo: any -> any {
                     return <li key={todo["id"]}>{todo["text"]}</li>;
@@ -424,14 +424,14 @@ useEffect(lambda -> None {
 ```jac
 def Component() -> any {
     let [count, setCount] = useState(0);
-    
+
     # ❌ Always logs 0
     useEffect(lambda -> None {
         setTimeout(lambda -> None {
             console.log(count);
         }, 1000);
     }, []);  # Missing count dependency!
-    
+
     # ✅ Logs current count
     useEffect(lambda -> None {
         setTimeout(lambda -> None {
@@ -452,7 +452,7 @@ useEffect(lambda -> None {
         setIsFirstRender(False);
         return;
     }
-    
+
     // This runs on updates, not first render
 }, [someDependency]);
 ```

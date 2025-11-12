@@ -10,7 +10,7 @@ Imagine a light switch in Python:
 class LightSwitch:
     def __init__(self):
         self.is_on = False  # This is "state"
-    
+
     def toggle(self):
         self.is_on = not self.is_on  # Changing state
         print(f"Light is {'on' if self.is_on else 'off'}")
@@ -43,14 +43,14 @@ let [value, setValue] = useState(initialValue);
 class Component:
     def __init__(self):
         self.count = 0  # state
-    
+
     def increment(self):
         self.count += 1  # updating state
 
 # Jac
 def Component() -> any {
     let [count, setCount] = useState(0);  # state
-    
+
     # Later: setCount(count + 1)  # updating state
 }
 ```
@@ -66,7 +66,7 @@ cl {
     def TodoInput() -> any {
         # Create state for the input value
         let [inputValue, setInputValue] = useState("");
-        
+
         return <div style={{
             "display": "flex",
             "gap": "8px",
@@ -176,10 +176,10 @@ cl {
             {"id": 2, "text": "Build todo app", "done": False},
             {"id": 3, "text": "Deploy to production", "done": False}
         ]);
-        
+
         # State for input field
         let [inputValue, setInputValue] = useState("");
-        
+
         return <div style={{
             "maxWidth": "720px",
             "margin": "0 auto",
@@ -187,7 +187,7 @@ cl {
         }}>
             <h1>My Todos</h1>
             <p>Total todos: {todos.length}</p>
-            
+
             {/* Input field */}
             <div style={{"display": "flex", "gap": "8px", "marginBottom": "16px"}}>
                 <input
@@ -203,7 +203,7 @@ cl {
                     Add
                 </button>
             </div>
-            
+
             {/* Display todos */}
             <div>
                 {todos.map(lambda todo: any -> any {
@@ -265,31 +265,31 @@ cl {
     def app() -> any {
         let [todos, setTodos] = useState([]);
         let [inputValue, setInputValue] = useState("");
-        
+
         # Function to add a new todo
         def handleAddTodo() -> None {
             if inputValue.trim() == "" {
                 return;  # Don't add empty todos
             }
-            
+
             # Create new todo object
             let newTodo = {
                 "id": todos.length + 1,  # Simple ID generation
                 "text": inputValue,
                 "done": False
             };
-            
+
             # Add to todos list
             let updatedTodos = todos.concat([newTodo]);
             setTodos(updatedTodos);
-            
+
             # Clear input field
             setInputValue("");
         }
-        
+
         return <div style={{"maxWidth": "720px", "margin": "0 auto", "padding": "24px"}}>
             <h1>My Todos</h1>
-            
+
             {/* Input section */}
             <div style={{"display": "flex", "gap": "8px", "marginBottom": "16px"}}>
                 <input
@@ -306,14 +306,14 @@ cl {
                     placeholder="What needs to be done?"
                     style={{"flex": "1", "padding": "10px", "fontSize": "16px"}}
                 />
-                <button 
+                <button
                     onClick={lambda -> None { handleAddTodo(); }}
                     style={{"padding": "10px 20px", "backgroundColor": "#3b82f6", "color": "white", "border": "none", "borderRadius": "6px", "cursor": "pointer"}}
                 >
                     Add
                 </button>
             </div>
-            
+
             {/* Display todos */}
             <div>
                 {todos.map(lambda todo: any -> any {
@@ -334,7 +334,7 @@ cl {
                     </div>;
                 })}
             </div>
-            
+
             {/* Empty state */}
             {(todos.length == 0) ? (
                 <div style={{"textAlign": "center", "padding": "40px", "color": "#9ca3af"}}>
@@ -352,7 +352,7 @@ cl {
    - Defined inside the component
    - Has access to state variables
 
-2. **Updating arrays**: 
+2. **Updating arrays**:
    - ❌ Don't mutate: `todos.push(newTodo)`
    - ✅ Create new array: `todos.concat([newTodo])`
 
@@ -380,8 +380,8 @@ def handleToggleTodo(id: int) -> None {
 }
 
 # In your JSX:
-<input 
-    type="checkbox" 
+<input
+    type="checkbox"
     checked={todo["done"]}
     onChange={lambda -> None { handleToggleTodo(todo["id"]); }}
 />
@@ -414,7 +414,7 @@ cl {
     def app() -> any {
         let [todos, setTodos] = useState([]);
         let [inputValue, setInputValue] = useState("");
-        
+
         def handleAddTodo() -> None {
             if inputValue.trim() == "" {
                 return;
@@ -427,7 +427,7 @@ cl {
             setTodos(todos.concat([newTodo]));
             setInputValue("");
         }
-        
+
         def handleToggleTodo(id: any) -> None {
             let updated = todos.map(lambda todo: any -> any {
                 if todo["id"] == id {
@@ -441,17 +441,17 @@ cl {
             });
             setTodos(updated);
         }
-        
+
         def handleDeleteTodo(id: any) -> None {
             let remaining = todos.filter(lambda todo: any -> bool {
                 return todo["id"] != id;
             });
             setTodos(remaining);
         }
-        
+
         return <div style={{"maxWidth": "720px", "margin": "0 auto", "padding": "24px"}}>
             <h1 style={{"textAlign": "center"}}>📝 My Todos</h1>
-            
+
             <div style={{"display": "flex", "gap": "8px", "marginBottom": "16px"}}>
                 <input
                     type="text"
@@ -463,14 +463,14 @@ cl {
                     placeholder="What needs to be done?"
                     style={{"flex": "1", "padding": "12px", "fontSize": "16px", "borderRadius": "8px", "border": "1px solid #e5e7eb"}}
                 />
-                <button 
+                <button
                     onClick={lambda -> None { handleAddTodo(); }}
                     style={{"padding": "12px 24px", "backgroundColor": "#3b82f6", "color": "white", "border": "none", "borderRadius": "8px", "cursor": "pointer"}}
                 >
                     Add
                 </button>
             </div>
-            
+
             <div>
                 {todos.map(lambda todo: any -> any {
                     return <div key={todo["id"]} style={{
@@ -483,8 +483,8 @@ cl {
                         "borderRadius": "8px",
                         "border": "1px solid #e5e7eb"
                     }}>
-                        <input 
-                            type="checkbox" 
+                        <input
+                            type="checkbox"
                             checked={todo["done"]}
                             onChange={lambda -> None { handleToggleTodo(todo["id"]); }}
                             style={{"width": "20px", "height": "20px", "cursor": "pointer"}}
@@ -496,7 +496,7 @@ cl {
                         }}>
                             {todo["text"]}
                         </span>
-                        <button 
+                        <button
                             onClick={lambda -> None { handleDeleteTodo(todo["id"]); }}
                             style={{"padding": "6px 12px", "backgroundColor": "#ef4444", "color": "white", "border": "none", "borderRadius": "6px", "cursor": "pointer"}}
                         >
@@ -505,7 +505,7 @@ cl {
                     </div>;
                 })}
             </div>
-            
+
             {(todos.length == 0) ? (
                 <div style={{"textAlign": "center", "padding": "40px", "color": "#9ca3af"}}>
                     No todos yet. Add one above!
@@ -525,7 +525,7 @@ cl {
    # ❌ Wrong
    todos.push(newTodo);
    setTodos(todos);
-   
+
    # ✅ Correct
    setTodos(todos.concat([newTodo]));
    ```

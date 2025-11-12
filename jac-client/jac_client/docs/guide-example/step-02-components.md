@@ -99,7 +99,7 @@ cl {
 
 - **Definition**: `def Greeting(name: str, emoji: str)`
   - Just like Python function parameters!
-  
+
 - **Usage**: `<Greeting name="Alice" emoji="👋" />`
   - Pass values like HTML attributes
 
@@ -135,7 +135,7 @@ cl {
     def app() -> any {
         return <div>
             <h1>My Todos</h1>
-            
+
             <TodoItem text="Learn Jac basics" completed={True} />
             <TodoItem text="Build a todo app" completed={False} />
             <TodoItem text="Deploy to production" completed={False} />
@@ -201,7 +201,7 @@ cl {
     def Stats(totalTodos: int, completedTodos: int) -> any {
         let remaining = totalTodos - completedTodos;
         let percentage = (completedTodos / totalTodos) * 100;
-        
+
         return <div>
             <h3>Progress</h3>
             <p>Total: {totalTodos}</p>

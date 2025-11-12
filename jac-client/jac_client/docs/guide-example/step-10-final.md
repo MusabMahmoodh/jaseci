@@ -33,11 +33,11 @@ node Todo {
 
 walker create_todo {
     has text: str;
-    
+
     class __specs__ {
         has auth: bool = True;
     }
-    
+
     can create with `root entry {
         new_todo = here ++> Todo(text=self.text);
         report new_todo;
@@ -48,11 +48,11 @@ walker read_todos {
     class __specs__ {
         has auth: bool = True;
     }
-    
+
     can read with `root entry {
         visit [-->(`?Todo)];
     }
-    
+
     can report_todos with exit {
         report here;
     }
@@ -62,7 +62,7 @@ walker toggle_todo {
     class __specs__ {
         has auth: bool = True;
     }
-    
+
     can toggle with Todo entry {
         here.done = not here.done;
         report here;
@@ -73,7 +73,7 @@ walker delete_todo {
     class __specs__ {
         has auth: bool = True;
     }
-    
+
     can delete with Todo entry {
         del here;
     }
@@ -101,7 +101,7 @@ cl {
     # ============================================
     # CUSTOM HOOKS
     # ============================================
-    
+
     def useAuth() -> dict {
         async def login(username: str, password: str) -> dict {
             try {
@@ -114,7 +114,7 @@ cl {
                 return {"success": False, "error": "Invalid credentials"};
             }
         }
-        
+
         async def signup(username: str, password: str, confirmPassword: str) -> dict {
             if password != confirmPassword {
                 return {"success": False, "error": "Passwords do not match"};
@@ -129,15 +129,15 @@ cl {
                 return {"success": False, "error": err.toString()};
             }
         }
-        
+
         def logout() -> None {
             jacLogout();
         }
-        
+
         def isAuthenticated() -> bool {
             return jacIsLoggedIn();
         }
-        
+
         return {
             "login": login,
             "signup": signup,
@@ -145,7 +145,7 @@ cl {
             "isAuthenticated": isAuthenticated
         };
     }
-    
+
     def useTodos() -> dict {
         let [state, setState] = useState({
             "todos": [],
@@ -154,7 +154,7 @@ cl {
             "loading": False,
             "error": ""
         });
-        
+
         def flattenReports(raw: any) -> list {
             if not raw {
                 return [];
@@ -176,7 +176,7 @@ cl {
             }
             return [raw];
         }
-        
+
         async def loadTodos() -> None {
             let current = state;
             setState({
@@ -186,7 +186,7 @@ cl {
                 "loading": True,
                 "error": ""
             });
-            
+
             try {
                 let response = await __jacSpawn("read_todos", "", {});
                 let items = flattenReports(response.reports);
@@ -207,14 +207,14 @@ cl {
                 });
             }
         }
-        
+
         async def addTodo() -> None {
             let current = state;
             let text = current["inputValue"].trim();
             if not text {
                 return;
             }
-            
+
             try {
                 let result = await __jacSpawn("create_todo", "", {"text": text});
                 let reportItems = flattenReports(result.reports);
@@ -222,7 +222,7 @@ cl {
                 if reportItems.length > 0 {
                     created = reportItems[0];
                 }
-                
+
                 if created {
                     let updatedTodos = current["todos"].concat([created]);
                     setState({
@@ -245,7 +245,7 @@ cl {
                 });
             }
         }
-        
+
         async def toggleTodo(id: any) -> None {
             let current = state;
             try {
@@ -277,7 +277,7 @@ cl {
                 });
             }
         }
-        
+
         async def deleteTodo(id: any) -> None {
             let current = state;
             try {
@@ -296,7 +296,7 @@ cl {
                 console.error("Error deleting todo:", err);
             }
         }
-        
+
         def setInputValue(value: str) -> None {
             let current = state;
             setState({
@@ -307,7 +307,7 @@ cl {
                 "error": current["error"]
             });
         }
-        
+
         def setFilter(value: str) -> None {
             let current = state;
             setState({
@@ -318,7 +318,7 @@ cl {
                 "error": current["error"]
             });
         }
-        
+
         def getFilteredTodos() -> list {
             let current = state;
             if current["filter"] == "active" {
@@ -332,21 +332,21 @@ cl {
             }
             return current["todos"];
         }
-        
+
         def getActiveCount() -> int {
             let current = state;
             return current["todos"].filter(lambda todo: any -> bool {
                 return not todo.done;
             }).length;
         }
-        
+
         def hasCompleted() -> bool {
             let current = state;
             return current["todos"].some(lambda todo: any -> bool {
                 return todo.done;
             });
         }
-        
+
         def clearCompleted() -> None {
             let current = state;
             let active = current["todos"].filter(lambda todo: any -> bool {
@@ -360,11 +360,11 @@ cl {
                 "error": current["error"]
             });
         }
-        
+
         def getState() -> dict {
             return state;
         }
-        
+
         return {
             "state": getState,
             "loadTodos": loadTodos,
@@ -379,11 +379,11 @@ cl {
             "hasCompleted": hasCompleted
         };
     }
-    
+
     # ============================================
     # PAGE COMPONENTS
     # ============================================
-    
+
     def LoginPage() -> any {
         let [state, setState] = useState({
             "username": "",
@@ -391,16 +391,16 @@ cl {
             "loading": False,
             "error": ""
         });
-        
+
         let navigate = useNavigate();
         let auth = useAuth();
-        
+
         useEffect(lambda -> None {
             if jacIsLoggedIn() {
                 navigate("/dashboard");
             }
         }, []);
-        
+
         async def handleSubmit(event: any) -> None {
             event.preventDefault();
             let current = state;
@@ -410,7 +410,7 @@ cl {
                 "loading": True,
                 "error": ""
             });
-            
+
             try {
                 let result = await auth["login"](current["username"], current["password"]);
                 if result["success"] {
@@ -432,7 +432,7 @@ cl {
                 });
             }
         }
-        
+
         return <div style={{
             "display": "flex",
             "justifyContent": "center",
@@ -463,7 +463,7 @@ cl {
                 }}>
                     Sign in to access your todos
                 </p>
-                
+
                 {(state["error"] != "") ? (
                     <div style={{
                         "marginBottom": "16px",
@@ -476,7 +476,7 @@ cl {
                         {state["error"]}
                     </div>
                 ) : <span></span>}
-                
+
                 <form onSubmit={handleSubmit} style={{
                     "display": "flex",
                     "flexDirection": "column",
@@ -516,7 +516,7 @@ cl {
                             required={True}
                         />
                     </label>
-                    
+
                     <label style={{
                         "display": "flex",
                         "flexDirection": "column",
@@ -551,7 +551,7 @@ cl {
                             required={True}
                         />
                     </label>
-                    
+
                     <button
                         type="submit"
                         disabled={state["loading"]}
@@ -570,7 +570,7 @@ cl {
                         {(("Signing in..." if state["loading"] else "Sign in"))}
                     </button>
                 </form>
-                
+
                 <p style={{
                     "marginTop": "24px",
                     "fontSize": "14px",
@@ -589,7 +589,7 @@ cl {
             </div>
         </div>;
     }
-    
+
     def SignupPage() -> any {
         let [state, setState] = useState({
             "username": "",
@@ -598,16 +598,16 @@ cl {
             "loading": False,
             "error": ""
         });
-        
+
         let navigate = useNavigate();
         let auth = useAuth();
-        
+
         useEffect(lambda -> None {
             if jacIsLoggedIn() {
                 navigate("/dashboard");
             }
         }, []);
-        
+
         async def handleSubmit(event: any) -> None {
             event.preventDefault();
             let current = state;
@@ -618,14 +618,14 @@ cl {
                 "loading": True,
                 "error": ""
             });
-            
+
             try {
                 let result = await auth["signup"](
                     current["username"],
                     current["password"],
                     current["confirmPassword"]
                 );
-                
+
                 if result["success"] {
                     navigate("/dashboard");
                 } else {
@@ -647,7 +647,7 @@ cl {
                 });
             }
         }
-        
+
         return <div style={{
             "display": "flex",
             "justifyContent": "center",
@@ -676,7 +676,7 @@ cl {
                 }}>
                     Join us to start managing your todos
                 </p>
-                
+
                 {(state["error"] != "") ? (
                     <div style={{
                         "marginBottom": "16px",
@@ -688,7 +688,7 @@ cl {
                         {state["error"]}
                     </div>
                 ) : <span></span>}
-                
+
                 <form onSubmit={handleSubmit} style={{
                     "display": "grid",
                     "gap": "16px"
@@ -726,7 +726,7 @@ cl {
                             required={True}
                         />
                     </label>
-                    
+
                     <label style={{
                         "display": "grid",
                         "gap": "6px"
@@ -760,7 +760,7 @@ cl {
                             required={True}
                         />
                     </label>
-                    
+
                     <label style={{
                         "display": "grid",
                         "gap": "6px"
@@ -794,7 +794,7 @@ cl {
                             required={True}
                         />
                     </label>
-                    
+
                     <button
                         type="submit"
                         disabled={state["loading"]}
@@ -813,7 +813,7 @@ cl {
                         {(("Creating..." if state["loading"] else "Create Account"))}
                     </button>
                 </form>
-                
+
                 <p style={{
                     "marginTop": "16px",
                     "textAlign": "center",
@@ -831,18 +831,18 @@ cl {
             </div>
         </div>;
     }
-    
+
     def DashboardPage() -> any {
         let todosHook = useTodos();
-        
+
         useEffect(lambda -> None {
             todosHook["loadTodos"]();
         }, []);
-        
+
         let state = todosHook["state"]();
         let filteredTodos = todosHook["getFilteredTodos"]();
         let activeCount = todosHook["getActiveCount"]();
-        
+
         return <div style={{
             "maxWidth": "720px",
             "margin": "0 auto",
@@ -857,7 +857,7 @@ cl {
             }}>
                 📝 My Todos
             </h1>
-            
+
             {(state["loading"]) ? (
                 <div style={{
                     "marginBottom": "16px",
@@ -869,7 +869,7 @@ cl {
                     Loading todos...
                 </div>
             ) : <span></span>}
-            
+
             {(state["error"] != "") ? (
                 <div style={{
                     "marginBottom": "16px",
@@ -881,7 +881,7 @@ cl {
                     {state["error"]}
                 </div>
             ) : <span></span>}
-            
+
             <div style={{
                 "display": "flex",
                 "gap": "8px",
@@ -930,7 +930,7 @@ cl {
                     Add
                 </button>
             </div>
-            
+
             <div style={{
                 "display": "flex",
                 "gap": "8px",
@@ -989,7 +989,7 @@ cl {
                     Completed
                 </button>
             </div>
-            
+
             <div style={{
                 "backgroundColor": "#ffffff",
                 "borderRadius": "12px",
@@ -1061,7 +1061,7 @@ cl {
                     })
                 )}
             </div>
-            
+
             {(state["todos"].length > 0) ? (
                 <div style={{
                     "display": "flex",
@@ -1102,18 +1102,18 @@ cl {
             ) : <span></span>}
         </div>;
     }
-    
+
     def AppHeader() -> any {
         let navigate = useNavigate();
         let auth = useAuth();
         let isAuthed = jacIsLoggedIn();
-        
+
         def handleLogout(event: any) -> None {
             event.preventDefault();
             auth["logout"]();
             navigate("/login");
         }
-        
+
         let authCta = <Link to="/login" style={{
             "padding": "8px 14px",
             "borderRadius": "8px",
@@ -1124,7 +1124,7 @@ cl {
         }}>
             Sign in
         </Link>;
-        
+
         if isAuthed {
             authCta = <button
                 onClick={handleLogout}
@@ -1141,7 +1141,7 @@ cl {
                 Sign out
             </button>;
         }
-        
+
         let dashboardLink = None;
         if isAuthed {
             dashboardLink = <Link to="/dashboard" style={{
@@ -1152,7 +1152,7 @@ cl {
                 Dashboard
             </Link>;
         }
-        
+
         return <header style={{
             "backgroundColor": "#ffffff",
             "borderBottom": "1px solid #e2e8f0",
@@ -1196,11 +1196,11 @@ cl {
             </div>
         </header>;
     }
-    
+
     # ============================================
     # MAIN APP
     # ============================================
-    
+
     def app() -> any {
         return <Router defaultRoute="/login">
             <div style={{
