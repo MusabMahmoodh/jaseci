@@ -191,7 +191,7 @@ node Todo {
 # ===== CREATE =====
 walker create_todo {
     has text: str;
-    
+
     can create with `root entry {
         # Create new todo connected to root
         new_todo = here ++> Todo(text=self.text);
@@ -205,7 +205,7 @@ walker read_todos {
         # Visit all todos
         visit [-->(`?Todo)];
     }
-    
+
     can report_todos with Todo entry {
         # Report each todo we visited
         report here;

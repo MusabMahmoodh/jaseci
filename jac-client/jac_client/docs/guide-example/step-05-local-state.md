@@ -470,7 +470,7 @@ cl {
 
         return <div style={{"maxWidth": "600px", "margin": "20px auto", "padding": "20px"}}>
             <h1>My Todos</h1>
-            
+
             {/* Input section */}
             <div style={{"display": "flex", "gap": "8px", "marginBottom": "16px"}}>
                 <input

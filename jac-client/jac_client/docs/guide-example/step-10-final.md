@@ -69,7 +69,7 @@ cl {
     # Navigation
     def Navigation() -> any {
         let isLoggedIn = jacIsLoggedIn();
-        
+
         return <nav style={{
             "padding": "12px 24px",
             "background": "#3b82f6",
