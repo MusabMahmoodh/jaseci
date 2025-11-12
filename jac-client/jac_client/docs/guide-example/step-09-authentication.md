@@ -104,13 +104,13 @@ cl {
         async def handleLogin(e: any) -> None {
             e.preventDefault();
             setError("");
-            
+
             # Validate inputs
             if not username or not password {
                 setError("Please fill in all fields");
                 return;
             }
-            
+
             # Attempt login
             success = await jacLogin(username, password);
             if success {
@@ -210,13 +210,13 @@ cl {
         async def handleSignup(e: any) -> None {
             e.preventDefault();
             setError("");
-            
+
             # Validate inputs
             if not username or not password {
                 setError("Please fill in all fields");
                 return;
             }
-            
+
             # Attempt signup
             result = await jacSignup(username, password);
             if result["success"] {
