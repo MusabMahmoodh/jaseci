@@ -6,7 +6,7 @@ cl {
     # Navigation Component
     def Navigation() -> any {
         let isLoggedIn = jacIsLoggedIn();
-        
+
         return <nav style={{
             "padding": "16px 24px",
             "background": "#667eea",
@@ -19,7 +19,7 @@ cl {
                 "fontWeight": "600",
                 "color": "#ffffff"
             }}>MyApp</div>
-            
+
             <div style={{"display": "flex", "gap": "16px"}}>
                 {(<>
                     <Link to="/dashboard" style={{
@@ -257,7 +257,7 @@ cl {
                     You are now logged in and can access protected content.
                 </p>
                 <p style={{"color": "#666", "lineHeight": "1.6", "marginTop": "16px"}}>
-                    This is a simple dashboard page demonstrating authentication 
+                    This is a simple dashboard page demonstrating authentication
                     with routing in Jac. You can add your own content and functionality here.
                 </p>
             </div>

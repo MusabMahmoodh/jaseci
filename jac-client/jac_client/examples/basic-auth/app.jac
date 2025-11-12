@@ -107,7 +107,7 @@ cl {
                         "color": "#6b7280",
                         "marginBottom": "32px"
                     }}>You are successfully logged in</p>
-                    
+
                     <div style={{
                         "background": "#f3f4f6",
                         "padding": "24px",
