@@ -27,10 +27,32 @@ If you're coming from Python, you'll love Jac because:
 
 Before starting, you should have:
 
+- **Python 3.12 or higher** installed on your system
+  - Download: [https://www.python.org/downloads/](https://www.python.org/downloads/)
+- **Node.js 20 or higher** and npm installed (required for frontend dependencies)
+  - Download: [https://nodejs.org/](https://nodejs.org/) (npm is included with Node.js)
+- **Jac** installed (`pip install jaclang`)
+- A code editor (VS Code recommended with Jac extension)
+  - Download: [https://code.visualstudio.com/](https://code.visualstudio.com/)
 - Basic Python knowledge
-- Jac installed on your system
-- A code editor (VS Code recommended)
 - Basic understanding of HTML/CSS concepts (helpful but not required)
+
+### Quick Setup Check
+
+Verify your environment is ready by running:
+
+```bash
+python --version    # Should show Python 3.10+
+node --version      # Should show Node 16+
+npm --version       # Should show npm 7+
+jac --version       # Should show Jac is installed
+```
+
+If Jac is not installed, run:
+
+```bash
+pip install jaclang jac-client
+```
 
 ## What You'll Learn
 
