@@ -97,9 +97,10 @@ INFO:     Application startup complete.
 INFO:     Uvicorn running on http://127.0.0.1:8000
 ```
 
-This starts:
-1. **Backend server** (like Flask/FastAPI) on port 8000
-2. **Frontend dev server** that auto-refreshes when you save changes
+This starts a **single unified server** on port 8000 that:
+1. Exposes your walkers as API endpoints (backend)
+2. Serves your frontend application
+3. Auto-refreshes when you save changes (Coming soon...)
 
 Open your browser and go to: **http://localhost:8000/page/app**
 
@@ -127,11 +128,12 @@ Save the file, and your browser will automatically refresh with the new content.
 Here's what happens when you run `jac serve app.jac`:
 
 1. **Jac compiler** reads your `.jac` file
-2. **Backend code** (walkers, nodes) → Python/FastAPI server
-3. **Frontend code** (`cl` blocks) → React JavaScript
-4. **Dev server** watches for changes and auto-reloads
+2. **Backend code** (walkers) → Converted to API endpoints
+3. **Frontend code** (`cl` blocks) → Compiled to RJavaScript
+4. **Single server** serves both frontend AND backend on the same port
+5. **Auto-reload** watches for changes and refreshes (Coming soon...)
 
-**Python analogy**: This is like running `uvicorn main:app --reload` for FastAPI, but it also handles your frontend!
+**Python analogy**: This is like running `uvicorn main:app --reload` for FastAPI, but it also compiles and serves your React frontend - all in one unified server!
 
 ## Common Issues
 
