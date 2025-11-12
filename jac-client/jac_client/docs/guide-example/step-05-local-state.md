@@ -405,116 +405,123 @@ def handleDeleteTodo(id: int) -> None {
 
 ## Complete Working Example
 
-Here's everything together:
+Here's the actual state management from the todo app:
 
 ```jac
-cl import from react {useState}
+cl import from react {useState, useEffect}
+cl import from "@jac-client/utils" {__jacSpawn}
 
 cl {
-    def app() -> any {
+    def TodosPage() -> any {
         let [todos, setTodos] = useState([]);
-        let [inputValue, setInputValue] = useState("");
+        let [input, setInput] = useState("");
+        let [filter, setFilter] = useState("all");
 
-        def handleAddTodo() -> None {
-            if inputValue.trim() == "" {
-                return;
+        # Load todos on mount
+        useEffect(lambda -> None {
+            async def loadTodos() -> None {
+                result = await __jacSpawn("read_todos", "", {});
+                setTodos(result.reports if result.reports else []);
             }
-            let newTodo = {
-                "id": Date.now(),  # Better ID generation
-                "text": inputValue,
-                "done": False
-            };
-            setTodos(todos.concat([newTodo]));
-            setInputValue("");
+            loadTodos();
+        }, []);
+
+        # Add todo
+        async def addTodo() -> None {
+            if not input.trim() { return; }
+            result = await __jacSpawn("create_todo", "", {"text": input.trim()});
+            setTodos(todos.concat([result.reports[0][0]]));
+            setInput("");
         }
 
-        def handleToggleTodo(id: any) -> None {
-            let updated = todos.map(lambda todo: any -> any {
-                if todo["id"] == id {
+        # Toggle todo
+        async def toggleTodo(id: any) -> None {
+            await __jacSpawn("toggle_todo", id, {});
+            setTodos(todos.map(lambda todo: any -> any {
+                if todo._jac_id == id {
                     return {
-                        "id": todo["id"],
-                        "text": todo["text"],
-                        "done": not todo["done"]
+                        "_jac_id": todo._jac_id,
+                        "text": todo.text,
+                        "done": not todo.done
                     };
                 }
                 return todo;
-            });
-            setTodos(updated);
+            }));
         }
 
-        def handleDeleteTodo(id: any) -> None {
-            let remaining = todos.filter(lambda todo: any -> bool {
-                return todo["id"] != id;
-            });
-            setTodos(remaining);
+        # Delete todo
+        async def deleteTodo(id: any) -> None {
+            await __jacSpawn("delete_todo", id, {});
+            setTodos(todos.filter(lambda todo: any -> bool { return todo._jac_id != id; }));
         }
 
-        return <div style={{"maxWidth": "720px", "margin": "0 auto", "padding": "24px"}}>
-            <h1 style={{"textAlign": "center"}}>📝 My Todos</h1>
+        # Filter todos
+        def getFilteredTodos() -> list {
+            if filter == "active" {
+                return todos.filter(lambda todo: any -> bool { return not todo.done; });
+            } elif filter == "completed" {
+                return todos.filter(lambda todo: any -> bool { return todo.done; });
+            }
+            return todos;
+        }
 
+        filteredTodos = getFilteredTodos();
+        activeCount = todos.filter(lambda todo: any -> bool { return not todo.done; }).length;
+
+        return <div style={{"maxWidth": "600px", "margin": "20px auto", "padding": "20px"}}>
+            <h1>My Todos</h1>
+            
+            {/* Input section */}
             <div style={{"display": "flex", "gap": "8px", "marginBottom": "16px"}}>
                 <input
                     type="text"
-                    value={inputValue}
-                    onChange={lambda e: any -> None { setInputValue(e.target.value); }}
+                    value={input}
+                    onChange={lambda e: any -> None { setInput(e.target.value); }}
                     onKeyPress={lambda e: any -> None {
-                        if e.key == "Enter" { handleAddTodo(); }
+                        if e.key == "Enter" { addTodo(); }
                     }}
                     placeholder="What needs to be done?"
-                    style={{"flex": "1", "padding": "12px", "fontSize": "16px", "borderRadius": "8px", "border": "1px solid #e5e7eb"}}
+                    style={{"flex": "1", "padding": "8px"}}
                 />
-                <button
-                    onClick={lambda -> None { handleAddTodo(); }}
-                    style={{"padding": "12px 24px", "backgroundColor": "#3b82f6", "color": "white", "border": "none", "borderRadius": "8px", "cursor": "pointer"}}
-                >
-                    Add
-                </button>
+                <button onClick={addTodo}>Add</button>
             </div>
 
+            {/* Filter buttons */}
+            <div style={{"display": "flex", "gap": "8px", "marginBottom": "16px"}}>
+                <button onClick={lambda -> None { setFilter("all"); }}>All</button>
+                <button onClick={lambda -> None { setFilter("active"); }}>Active</button>
+                <button onClick={lambda -> None { setFilter("completed"); }}>Completed</button>
+            </div>
+
+            {/* Todo list */}
             <div>
-                {todos.map(lambda todo: any -> any {
-                    return <div key={todo["id"]} style={{
-                        "display": "flex",
-                        "alignItems": "center",
-                        "gap": "12px",
-                        "padding": "12px",
-                        "backgroundColor": "#ffffff",
-                        "marginBottom": "8px",
-                        "borderRadius": "8px",
-                        "border": "1px solid #e5e7eb"
-                    }}>
+                {filteredTodos.map(lambda todo: any -> any {
+                    return <div key={todo._jac_id}>
                         <input
                             type="checkbox"
-                            checked={todo["done"]}
-                            onChange={lambda -> None { handleToggleTodo(todo["id"]); }}
-                            style={{"width": "20px", "height": "20px", "cursor": "pointer"}}
+                            checked={todo.done}
+                            onChange={lambda -> None { toggleTodo(todo._jac_id); }}
                         />
-                        <span style={{
-                            "flex": "1",
-                            "textDecoration": (("line-through" if todo["done"] else "none")),
-                            "color": (("#9ca3af" if todo["done"] else "#1f2937"))
-                        }}>
-                            {todo["text"]}
-                        </span>
-                        <button
-                            onClick={lambda -> None { handleDeleteTodo(todo["id"]); }}
-                            style={{"padding": "6px 12px", "backgroundColor": "#ef4444", "color": "white", "border": "none", "borderRadius": "6px", "cursor": "pointer"}}
-                        >
+                        <span>{todo.text}</span>
+                        <button onClick={lambda -> None { deleteTodo(todo._jac_id); }}>
                             Delete
                         </button>
                     </div>;
                 })}
             </div>
 
-            {(todos.length == 0) ? (
-                <div style={{"textAlign": "center", "padding": "40px", "color": "#9ca3af"}}>
-                    No todos yet. Add one above!
-                </div>
-            ) : <span></span>}
+            {/* Stats */}
+            {(<div>{activeCount} items left</div>) if todos.length > 0 else None}
         </div>;
     }
 }
 ```
+
+**Key state patterns:**
+- Three pieces of state: `todos`, `input`, `filter`
+- All mutations create new arrays (no direct mutation)
+- Filter is local-only (doesn't affect backend)
+- Backend calls are async and update state on completion
 
 ## State Update Rules
 
@@ -567,5 +574,6 @@ cl {
 Your app now works locally, but the data isn't saved anywhere! When you refresh, everything is lost. In the next step, we'll learn about `useEffect` to load data when the app starts.
 
 👉 **[Continue to Step 6: Side Effects with useEffect](./step-06-effects.md)**
+
 
 

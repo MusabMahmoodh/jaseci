@@ -51,78 +51,20 @@ No need to:
 
 **Jac handles it all!**
 
-## Creating a useAuth Hook
+## Using Authentication Directly
 
-Let's create a custom hook for authentication (like a helper class):
+Jac makes authentication simple with these built-in functions:
 
 ```jac
-cl import from react {useState}
 cl import from "@jac-client/utils" {
-    jacLogin,
-    jacSignup,
-    jacLogout,
-    jacIsLoggedIn
-}
-
-cl {
-    def useAuth() -> dict {
-        # Login function
-        async def login(username: str, password: str) -> dict {
-            try {
-                result = await jacLogin(username, password);
-                if result {
-                    return {"success": True, "data": result, "error": None};
-                }
-                return {"success": False, "error": "Invalid credentials"};
-            } except Exception as err {
-                return {"success": False, "error": "Invalid credentials"};
-            }
-        }
-
-        # Signup function
-        async def signup(username: str, password: str, confirmPassword: str) -> dict {
-            # Validate passwords match
-            if password != confirmPassword {
-                return {"success": False, "error": "Passwords do not match"};
-            }
-
-            try {
-                result = await jacSignup(username, password);
-                if result {
-                    return {"success": True, "data": result, "error": None};
-                }
-                return {"success": False, "error": "Unable to create account"};
-            } except Exception as err {
-                return {"success": False, "error": err.toString()};
-            }
-        }
-
-        # Logout function
-        def logout() -> None {
-            jacLogout();
-        }
-
-        # Check if authenticated
-        def isAuthenticated() -> bool {
-            return jacIsLoggedIn();
-        }
-
-        # Return all auth functions
-        return {
-            "login": login,
-            "signup": signup,
-            "logout": logout,
-            "isAuthenticated": isAuthenticated
-        };
-    }
+    jacLogin,        # Log user in
+    jacSignup,       # Create new account
+    jacLogout,       # Log user out
+    jacIsLoggedIn    # Check if logged in
 }
 ```
 
-**What this does:**
-- Wraps Jac's auth functions
-- Provides consistent error handling
-- Returns user-friendly responses
-- Easy to use in any component
+Let's see how to use them directly in your components (no custom hooks needed!):
 
 **Python analogy:**
 
@@ -147,230 +89,100 @@ class AuthService:
 
 ## Creating the Login Page
 
-Let's build a complete login form:
+Let's build a simple, clean login form:
 
 ```jac
-cl import from react {useState, useEffect}
-cl import from "@jac-client/utils" {useNavigate, jacIsLoggedIn}
+cl import from react {useState}
+cl import from "@jac-client/utils" {jacLogin}
 
 cl {
     def LoginPage() -> any {
-        let [state, setState] = useState({
-            "username": "",
-            "password": "",
-            "loading": False,
-            "error": ""
-        });
+        let [username, setUsername] = useState("");
+        let [password, setPassword] = useState("");
+        let [error, setError] = useState("");
 
-        let navigate = useNavigate();
-        let auth = useAuth();
-
-        # Redirect if already logged in
-        useEffect(lambda -> None {
-            if jacIsLoggedIn() {
-                navigate("/dashboard");
+        async def handleLogin(e: any) -> None {
+            e.preventDefault();
+            setError("");
+            
+            # Validate inputs
+            if not username or not password {
+                setError("Please fill in all fields");
+                return;
             }
-        }, []);
-
-        async def handleSubmit(event: any) -> None {
-            event.preventDefault();  # Prevent form submission reload
-
-            # Set loading state
-            let current = state;
-            setState({
-                "username": current["username"],
-                "password": current["password"],
-                "loading": True,
-                "error": ""
-            });
-
-            try {
-                # Attempt login
-                let result = await auth["login"](
-                    current["username"],
-                    current["password"]
-                );
-
-                if result["success"] {
-                    # Success - redirect to dashboard
-                    navigate("/dashboard");
-                } else {
-                    # Failed - show error
-                    setState({
-                        "username": current["username"],
-                        "password": current["password"],
-                        "loading": False,
-                        "error": result["error"]
-                    });
-                }
-            } except Exception as err {
-                setState({
-                    "username": current["username"],
-                    "password": current["password"],
-                    "loading": False,
-                    "error": err.toString()
-                });
+            
+            # Attempt login
+            success = await jacLogin(username, password);
+            if success {
+                # Redirect to todos page
+                window.location.hash = "#/todos";
+                window.location.reload();
+            } else {
+                setError("Invalid credentials");
             }
         }
 
         return <div style={{
+            "minHeight": "calc(100vh - 48px)",
             "display": "flex",
+            "alignItems": "center",
             "justifyContent": "center",
-            "padding": "48px 16px",
-            "backgroundColor": "#f9fafb",
-            "minHeight": "100vh"
+            "background": "#f5f5f5"
         }}>
             <div style={{
-                "width": "100%",
-                "maxWidth": "420px",
-                "backgroundColor": "#ffffff",
-                "padding": "32px",
-                "borderRadius": "16px",
-                "boxShadow": "0 10px 30px rgba(15, 23, 42, 0.08)"
+                "background": "#ffffff",
+                "padding": "30px",
+                "borderRadius": "8px",
+                "width": "280px",
+                "boxShadow": "0 2px 4px rgba(0,0,0,0.1)"
             }}>
-                <h1 style={{
-                    "margin": "0 0 8px",
-                    "fontSize": "28px",
-                    "fontWeight": "700",
-                    "color": "#1e293b"
-                }}>
-                    Welcome back
-                </h1>
-                <p style={{
-                    "margin": "0 0 24px",
-                    "color": "#64748b",
-                    "fontSize": "15px"
-                }}>
-                    Sign in to access your todos
-                </p>
-
-                {/* Error Message */}
-                {(state["error"] != "") ? (
-                    <div style={{
-                        "marginBottom": "16px",
-                        "padding": "12px",
-                        "borderRadius": "8px",
-                        "backgroundColor": "#fee2e2",
-                        "color": "#b91c1c",
-                        "fontSize": "14px"
-                    }}>
-                        {state["error"]}
-                    </div>
-                ) : <span></span>}
-
-                {/* Login Form */}
-                <form onSubmit={handleSubmit} style={{
-                    "display": "flex",
-                    "flexDirection": "column",
-                    "gap": "16px"
-                }}>
-                    {/* Username */}
-                    <label style={{
-                        "display": "flex",
-                        "flexDirection": "column",
-                        "gap": "8px"
-                    }}>
-                        <span style={{
-                            "fontSize": "14px",
-                            "fontWeight": "500",
-                            "color": "#475569"
-                        }}>
-                            Username
-                        </span>
-                        <input
-                            type="text"
-                            value={state["username"]}
-                            onChange={lambda e: any -> None {
-                                setState({
-                                    "username": e.target.value,
-                                    "password": state["password"],
-                                    "loading": state["loading"],
-                                    "error": ""
-                                });
-                            }}
-                            placeholder="Enter your username"
-                            style={{
-                                "padding": "12px 14px",
-                                "borderRadius": "10px",
-                                "border": "1px solid #d1d5db",
-                                "fontSize": "15px",
-                                "outline": "none"
-                            }}
-                            required={True}
-                        />
-                    </label>
-
-                    {/* Password */}
-                    <label style={{
-                        "display": "flex",
-                        "flexDirection": "column",
-                        "gap": "8px"
-                    }}>
-                        <span style={{
-                            "fontSize": "14px",
-                            "fontWeight": "500",
-                            "color": "#475569"
-                        }}>
-                            Password
-                        </span>
-                        <input
-                            type="password"
-                            value={state["password"]}
-                            onChange={lambda e: any -> None {
-                                setState({
-                                    "username": state["username"],
-                                    "password": e.target.value,
-                                    "loading": state["loading"],
-                                    "error": ""
-                                });
-                            }}
-                            placeholder="Enter your password"
-                            style={{
-                                "padding": "12px 14px",
-                                "borderRadius": "10px",
-                                "border": "1px solid #d1d5db",
-                                "fontSize": "15px",
-                                "outline": "none"
-                            }}
-                            required={True}
-                        />
-                    </label>
-
-                    {/* Submit Button */}
+                <h2 style={{"marginBottom": "20px"}}>Login</h2>
+                <form onSubmit={handleLogin}>
+                    <input
+                        type="text"
+                        value={username}
+                        onChange={lambda e: any -> None { setUsername(e.target.value); }}
+                        placeholder="Username"
+                        style={{
+                            "width": "100%",
+                            "padding": "8px",
+                            "marginBottom": "10px",
+                            "border": "1px solid #ddd",
+                            "borderRadius": "4px",
+                            "boxSizing": "border-box"
+                        }}
+                    />
+                    <input
+                        type="password"
+                        value={password}
+                        onChange={lambda e: any -> None { setPassword(e.target.value); }}
+                        placeholder="Password"
+                        style={{
+                            "width": "100%",
+                            "padding": "8px",
+                            "marginBottom": "10px",
+                            "border": "1px solid #ddd",
+                            "borderRadius": "4px",
+                            "boxSizing": "border-box"
+                        }}
+                    />
+                    {(<div style={{"color": "#dc2626", "fontSize": "14px", "marginBottom": "10px"}}>{error}</div>) if error else None}
                     <button
                         type="submit"
-                        disabled={state["loading"]}
                         style={{
-                            "padding": "12px",
-                            "borderRadius": "10px",
-                            "backgroundColor": "#6366f1",
+                            "width": "100%",
+                            "padding": "8px",
+                            "background": "#3b82f6",
                             "color": "#ffffff",
-                            "fontWeight": "600",
-                            "fontSize": "15px",
                             "border": "none",
-                            "cursor": (("not-allowed" if state["loading"] else "pointer")),
-                            "opacity": ((0.6 if state["loading"] else 1))
+                            "borderRadius": "4px",
+                            "cursor": "pointer",
+                            "fontWeight": "600"
                         }}
-                    >
-                        {(("Signing in..." if state["loading"] else "Sign in"))}
-                    </button>
+                    >Login</button>
                 </form>
-
-                {/* Signup Link */}
-                <p style={{
-                    "marginTop": "24px",
-                    "fontSize": "14px",
-                    "color": "#64748b",
-                    "textAlign": "center"
-                }}>
-                    Don't have an account?{" "}
-                    <Link to="/signup" style={{
-                        "color": "#3b82f6",
-                        "textDecoration": "none",
-                        "fontWeight": "600"
-                    }}>
-                        Create one
-                    </Link>
+                <p style={{"textAlign": "center", "marginTop": "12px", "fontSize": "14px"}}>
+                    Need an account? <Link to="/signup">Sign up</Link>
                 </p>
             </div>
         </div>;
@@ -378,68 +190,41 @@ cl {
 }
 ```
 
+**Key Features:**
+- Simple state with `useState` for username, password, and error
+- Direct call to `jacLogin()` - no wrapper needed
+- Redirects to `/todos` on success using `window.location`
+- Clean error handling
+
 ## Creating the Signup Page
+
+Similarly, the signup page is straightforward:
 
 ```jac
 cl {
     def SignupPage() -> any {
-        let [state, setState] = useState({
-            "username": "",
-            "password": "",
-            "confirmPassword": "",
-            "loading": False,
-            "error": ""
-        });
+        let [username, setUsername] = useState("");
+        let [password, setPassword] = useState("");
+        let [error, setError] = useState("");
 
-        let navigate = useNavigate();
-        let auth = useAuth();
-
-        # Redirect if already logged in
-        useEffect(lambda -> None {
-            if jacIsLoggedIn() {
-                navigate("/dashboard");
+        async def handleSignup(e: any) -> None {
+            e.preventDefault();
+            setError("");
+            
+            # Validate inputs
+            if not username or not password {
+                setError("Please fill in all fields");
+                return;
             }
-        }, []);
-
-        async def handleSubmit(event: any) -> None {
-            event.preventDefault();
-
-            let current = state;
-            setState({
-                "username": current["username"],
-                "password": current["password"],
-                "confirmPassword": current["confirmPassword"],
-                "loading": True,
-                "error": ""
-            });
-
-            try {
-                let result = await auth["signup"](
-                    current["username"],
-                    current["password"],
-                    current["confirmPassword"]
-                );
-
-                if result["success"] {
-                    # Success - redirect to dashboard
-                    navigate("/dashboard");
-                } else {
-                    setState({
-                        "username": current["username"],
-                        "password": current["password"],
-                        "confirmPassword": current["confirmPassword"],
-                        "loading": False,
-                        "error": result["error"]
-                    });
-                }
-            } except Exception as err {
-                setState({
-                    "username": current["username"],
-                    "password": current["password"],
-                    "confirmPassword": current["confirmPassword"],
-                    "loading": False,
-                    "error": err.toString()
-                });
+            
+            # Attempt signup
+            result = await jacSignup(username, password);
+            if result["success"] {
+                # Redirect to todos page
+                window.location.hash = "#/todos";
+                window.location.reload();
+            } else {
+                setError(result["error"] if result["error"] else "Signup failed");
             }
         }
 
@@ -810,5 +595,6 @@ Jac automatically handles session persistence - users stay logged in across page
 Congratulations! You've learned all the key concepts. Now let's put everything together into the **complete, final app**!
 
 👉 **[Continue to Step 10: Final Integration](./step-10-final.md)**
+
 
 

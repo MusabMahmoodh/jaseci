@@ -275,7 +275,7 @@ cl {
         async def addTodo() -> None {
             if not input.trim() { return; }
             result = await __jacSpawn("create_todo", "", {"text": input.trim()});
-            setTodos(todos.concat([result.reports[0]]));
+            setTodos(todos.concat([result.reports[0][0]]));
             setInput("");
         }
 

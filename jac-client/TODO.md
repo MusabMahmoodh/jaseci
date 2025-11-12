@@ -1,1 +1,1 @@
-- [ ] hash routing : Avoid page reload after authentication in SPA routing
+- [ ] hash routing : Avoid page reload after authentication in SPA routing -> let's user react router for client side routing

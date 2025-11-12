@@ -295,3 +295,4 @@ Your components are plain right now. Let's make them beautiful with **styling**!
 👉 **[Continue to Step 3: Adding Styles](./step-03-styling.md)**
 
 
+

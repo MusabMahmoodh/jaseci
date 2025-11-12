@@ -197,53 +197,43 @@ cl {
 1. First one loads data once (empty dependencies)
 2. Second one saves data when todos change (depends on `todos`)
 
-## Fetching from Backend (Preview)
+## Fetching from Backend - Real Example
 
-Here's how you'll fetch todos from your Jac backend:
+Here's exactly how the todo app loads todos from the backend:
 
 ```jac
 cl import from react {useState, useEffect}
 cl import from "@jac-client/utils" {__jacSpawn}
 
 cl {
-    def app() -> any {
+    def TodosPage() -> any {
         let [todos, setTodos] = useState([]);
-        let [loading, setLoading] = useState(True);
-        let [error, setError] = useState("");
+        let [input, setInput] = useState("");
+        let [filter, setFilter] = useState("all");
 
+        # Load todos when component mounts
         useEffect(lambda -> None {
             async def loadTodos() -> None {
-                try {
-                    # Call backend walker (we'll create this later!)
-                    let response = await __jacSpawn("read_todos", "", {});
-                    setTodos(response.reports);
-                    setLoading(False);
-                } except Exception as err {
-                    setError(err.toString());
-                    setLoading(False);
-                }
+                result = await __jacSpawn("read_todos", "", {});
+                setTodos(result.reports if result.reports else []);
             }
-
             loadTodos();
-        }, []);
-
-        if loading {
-            return <div>Loading...</div>;
-        }
-
-        if error != "" {
-            return <div>Error: {error}</div>;
-        }
+        }, []);  # Empty array = run once on mount
 
         return <div>
-            <h1>Todos from Backend</h1>
-            {/* Render todos */}
+            <h1>My Todos</h1>
+            {/* Rest of UI */}
         </div>;
     }
 }
 ```
 
-**Don't worry** if this looks confusing - we'll implement backends in Step 8!
+**What's happening:**
+1. Component renders with empty todos array
+2. `useEffect` runs **after** first render
+3. `loadTodos()` async function calls the backend walker
+4. Results update the state with `setTodos()`
+5. Component re-renders with the loaded todos
 
 ## Multiple Effects for Organization
 
@@ -502,5 +492,6 @@ Try implementing:
 Your app works great, but it's all on one page. Let's add **multiple pages** with routing!
 
 👉 **[Continue to Step 7: Adding Routes](./step-07-routing.md)**
+
 
 

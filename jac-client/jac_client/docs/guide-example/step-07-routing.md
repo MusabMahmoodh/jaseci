@@ -288,15 +288,25 @@ cl {
 
     # Main App
     def app() -> any {
-        return <Router defaultRoute="/">
-            <Routes>
-                <Route path="/" component={HomePage} />
-                <Route path="/login" component={LoginPage} />
-                <Route path="/dashboard" component={DashboardPage} />
-            </Routes>
+        return <Router defaultRoute="/login">
+            <div style={{"fontFamily": "system-ui, sans-serif"}}>
+                <Navigation />
+                <Routes>
+                    <Route path="/login" component={LoginPage} />
+                    <Route path="/signup" component={SignupPage} />
+                    <Route path="/todos" component={TodosPage} guard={jacIsLoggedIn} />
+                </Routes>
+            </div>
         </Router>;
     }
 }
+```
+
+**Key changes from examples:**
+- Default route is `/login` for authentication-first approach
+- Added `<Navigation />` component at the top
+- Routes are: `/login`, `/signup`, and `/todos` (not `/dashboard`)
+- `/todos` route is protected with `guard={jacIsLoggedIn}`
 ```
 
 ## Programmatic Navigation
@@ -594,5 +604,6 @@ def OldPage() -> any {
 Now you have multiple pages, but they don't save data to a backend yet. Let's create **walkers** - Jac's way of handling backend logic!
 
 👉 **[Continue to Step 8: Backend with Walkers](./step-08-walkers.md)**
+
 
 

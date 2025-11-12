@@ -191,11 +191,7 @@ node Todo {
 # ===== CREATE =====
 walker create_todo {
     has text: str;
-
-    class __specs__ {
-        has auth: bool = True;
-    }
-
+    
     can create with `root entry {
         # Create new todo connected to root
         new_todo = here ++> Todo(text=self.text);
@@ -205,16 +201,12 @@ walker create_todo {
 
 # ===== READ =====
 walker read_todos {
-    class __specs__ {
-        has auth: bool = True;
-    }
-
     can read with `root entry {
         # Visit all todos
         visit [-->(`?Todo)];
     }
-
-    can report_todos with exit {
+    
+    can report_todos with Todo entry {
         # Report each todo we visited
         report here;
     }
@@ -222,10 +214,6 @@ walker read_todos {
 
 # ===== UPDATE (Toggle) =====
 walker toggle_todo {
-    class __specs__ {
-        has auth: bool = True;
-    }
-
     can toggle with Todo entry {
         here.done = not here.done;
         report here;
@@ -234,13 +222,10 @@ walker toggle_todo {
 
 # ===== DELETE =====
 walker delete_todo {
-    class __specs__ {
-        has auth: bool = True;
-    }
-
     can delete with Todo entry {
-        # Disconnect and delete this todo
-        del here;
+        # Destroy the todo node
+        here.destroy();
+        report {"success": True};
     }
 }
 ```
@@ -602,5 +587,6 @@ walker search_todos {
 Now you can create and store todos! But anyone can see anyone's todos. Let's add **authentication** to make it secure!
 
 👉 **[Continue to Step 9: Adding Authentication](./step-09-authentication.md)**
+
 
 

@@ -167,3 +167,4 @@ Now that you have a running app, let's learn about **components** - reusable UI 
 👉 **[Continue to Step 2: Components Basics](./step-02-components.md)**
 
 
+
