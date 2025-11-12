@@ -101,7 +101,7 @@ This starts:
 1. **Backend server** (like Flask/FastAPI) on port 8000
 2. **Frontend dev server** that auto-refreshes when you save changes
 
-Open your browser and go to: **http://localhost:8000**
+Open your browser and go to: **http://localhost:8000/page/app**
 
 You should see "Hello, Jac!" displayed!
 
