@@ -42,9 +42,9 @@ Before starting, you should have:
 Verify your environment is ready by running:
 
 ```bash
-python --version    # Should show Python 3.10+
-node --version      # Should show Node 16+
-npm --version       # Should show npm 7+
+python --version    # Should show Python 3.12+
+node --version      # Should show Node 20+
+npm --version       # Should show npm 
 jac --version       # Should show Jac is installed
 ```
 
