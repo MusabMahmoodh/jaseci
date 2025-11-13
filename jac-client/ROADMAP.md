@@ -9,6 +9,7 @@
 5. Jac install - universal pakcage manager for jac-client
 5. Migrate SLAM / Large project to document and improve the DX
 6. OSP in FE
+    - [ ] migrate to browser router
 
 ## 1. Current Stack (React Style)
 - **State & Lifecycle**: React Hooks (useState, useEffect, etc.)
@@ -124,7 +125,6 @@
 
 ### Low Priority
 - [ ] **Component memoization** - Auto-optimization
-
 
 ## 📚 Documentation
 

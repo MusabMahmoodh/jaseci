@@ -2,6 +2,16 @@
 
 cl import from 'react' {* as React}
 cl import from 'react-dom/client' {* as ReactDOM}
+cl import from 'react-router-dom' {
+    HashRouter as ReactRouterHashRouter,
+    Routes as ReactRouterRoutes,
+    Route as ReactRouterRoute,
+    Link as ReactRouterLink,
+    Navigate as ReactRouterNavigate,
+    useNavigate as reactRouterUseNavigate,
+    useLocation as reactRouterUseLocation,
+    useParams as reactRouterUseParams
+}
 
 cl {
 # JSX factory function - uses React.createElement
@@ -40,297 +50,43 @@ def __jacJsx(tag: any, props: dict = {}, children: any = []) -> any {
 }
 
 # ============================================================================
-# React-Style Routing System (using React Context)
+# React Router Integration (using react-router-dom v6)
 # ============================================================================
+# Direct re-exports of React Router components for seamless integration
+# Router uses HashRouter for hash-based routing (#/path)
+# See: https://reactrouter.com/6.30.1/router-components/hash-router
 
-# Create React Context for router
-let __jacRouterContext = React.createContext(None);
+let Router = ReactRouterHashRouter;
+let Routes = ReactRouterRoutes;
+let Route = ReactRouterRoute;
+let Link = ReactRouterLink;
+let Navigate = ReactRouterNavigate;
 
-# Router Provider Component - wraps the app and provides routing context
-def Router(props: dict) -> any {
-    children = props["children"] if "children" in props else [];
-    defaultRoute = props["defaultRoute"] if "defaultRoute" in props else "/";
-    basename = props["basename"] if "basename" in props else "";
+# React Router Hooks - wrapped for Jac compatibility
+let useNavigate = reactRouterUseNavigate;
+let useLocation = reactRouterUseLocation;
+let useParams = reactRouterUseParams;
 
-    # Get initial path from hash or use default
-    initialPath = __jacGetHashPath();
-    if not initialPath {
-        initialPath = defaultRoute;
-    }
-    if basename and initialPath.startsWith(basename) {
-        initialPath = initialPath[len(basename):];
-    }
-    # Normalize path to always start with /
-    if initialPath and not initialPath.startsWith("/") {
-        initialPath = "/" + initialPath;
-    }
-
-    # Use React useState for path - this ensures React handles re-renders
-    [pathState, setPathState] = React.useState(initialPath);
-
-    # Create getter function that returns current path
-    def currentPath() -> str {
-        return pathState;
-    }
-
-    # Navigate function
-    def navigateTo(path: str) -> None {
-        # Normalize path to always start with /
-        normalizedPath = path;
-        if normalizedPath and not normalizedPath.startsWith("/") {
-            normalizedPath = "/" + normalizedPath;
-        }
-        fullPath = basename + normalizedPath if basename else normalizedPath;
-        window.location.hash = "#" + fullPath;
-        setPathState(normalizedPath);
-    }
-
-    # Listen to hash changes using React useEffect
-    React.useEffect(lambda -> None {
-        def handleHashChange(event: any) -> None {
-            newPath = __jacGetHashPath();
-            if basename and newPath.startsWith(basename) {
-                newPath = newPath[len(basename):];
-            }
-            if not newPath {
-                newPath = defaultRoute;
-            }
-            # Normalize path to always start with /
-            if newPath and not newPath.startsWith("/") {
-                newPath = "/" + newPath;
-            }
-            setPathState(newPath);
-        }
-
-        window.addEventListener("hashchange", handleHashChange);
-        window.addEventListener("popstate", handleHashChange);
-
-        # Cleanup function
-        return lambda -> None {
-            window.removeEventListener("hashchange", handleHashChange);
-            window.removeEventListener("popstate", handleHashChange);
-        };
-    }, []);
-
-    # Router context value - create new object with current path
-    routerValue = {
-        "location": currentPath,
-        "navigate": navigateTo,
-        "basename": basename
-    };
-
-    # Return Provider component
-    return __jacJsx(__jacRouterContext.Provider, {"value": routerValue}, children);
-}
-
-# Route Component - renders component when path matches
-def Route(props: dict) -> any {
-    path = props["path"] if "path" in props else "/";
-    # Use bracket notation to avoid 'element' keyword conflict
-    elementProp = None;
-    if "element" in props {
-        elementProp = props["element"];
-    }
-    component = props["component"] if "component" in props else None;
-    guard = props["guard"] if "guard" in props else None;
-
-    # Get router context
-    router = React.useContext(__jacRouterContext);
-    if not router {
-        console.error("[Jac] Route must be used inside Router");
-        return None;
-    }
-
-    currentPath = router.location();
-    isMatch = currentPath == path;
-
-    if not isMatch {
-        return None;
-    }
-
-    # Check guard if present
-    if guard and not guard() {
-        return __jacJsx("div", {}, ["Access Denied"]);
-    }
-
-    # Render component or element
-    if component {
-        return component();
-    }
-    if elementProp {
-        return elementProp;
-    }
-
-    return None;
-}
-
-# Routes Component - renders first matching route
-def Routes(props: dict) -> any {
-    children = props["children"] if "children" in props else [];
-
-    # Get router context
-    router = React.useContext(__jacRouterContext);
-    if not router {
-        console.error("[Jac] Routes must be used inside Router");
-        return __jacJsx("div", {}, ["Router context not found"]);
-    }
-
-    currentPath = router.location();
-
-    # Find first matching route
-    childrenArray = [];
-    if children != None {
-        if Array.isArray(children) {
-            childrenArray = children;
-        } else {
-            childrenArray = [children];
-        }
-    }
-
-    for child in childrenArray {
-        # Extract route props from React element
-        # Check if child is an object with props (React element)
-        if child and child != None and child.props {
-            routePath = child.props.path if child.props.path else "/";
-            if routePath == currentPath {
-                # Check guard if present
-                guard = child.props.guard if child.props.guard else None;
-                if guard and not guard() {
-                    return __jacJsx("div", {}, ["Access Denied"]);
-                }
-                # Render the matched route
-                if child.props.component {
-                    return child.props.component();
-                } else {
-                    # Check for element prop using bracket notation to avoid keyword conflict
-                    elementValue = child.props["element"] if child.props["element"] != None else None;
-                    if elementValue {
-                        return elementValue;
-                    }
-                }
-            }
-        }
-    }
-
-    # No match - show 404
-    return __jacJsx("div", {}, ["404 - Route not found: ", currentPath]);
-}
-
-# Link Component - declarative navigation
-def Link(props: dict) -> any {
-    to = props["to"] if "to" in props else "/";
-    href = props["href"] if "href" in props else to;
-    # Normalize href to always start with /
-    if href and not href.startsWith("/") {
-        href = "/" + href;
-    }
-    children = props["children"] if "children" in props else [];
-
-    # Get router context
-    router = React.useContext(__jacRouterContext);
-
-    def handleClick(event: any) -> None {
-        event.preventDefault();
-        if router {
-            router.navigate(href);
-        } else {
-            # Fallback if no router context
-            window.location.hash = "#" + href;
-        }
-    }
-
-    # Ensure children is properly handled
-    childrenArray = [];
-    if children != None {
-        if Array.isArray(children) {
-            childrenArray = children;
-        } else {
-            childrenArray = [children];
-        }
-    }
-
-    # Get full href with basename - always ensure it starts with #
-    if router and router.basename {
-        fullHref = "#" + router.basename + href;
-    } else {
-        fullHref = "#" + href;
-    }
-
-    # Ensure href always starts with # to prevent full page navigation
-    if not fullHref.startsWith("#") {
-        fullHref = "#" + fullHref;
-    }
-
-    # Use onClick (camelCase) for React, and ensure href is hash-based
-    return __jacJsx("a", {"href": fullHref, "onClick": handleClick}, childrenArray);
-}
-
-# Navigate Component - programmatic redirect
-def Navigate(props: dict) -> any {
-    to = props["to"] if "to" in props else "/";
-    replace = props["replace"] if "replace" in props else False;
-
-    router = React.useContext(__jacRouterContext);
-    if router {
-        router.navigate(to);
-    } else {
-        window.location.hash = "#" + to;
-    }
-
-    return None;
-}
-
-# useNavigate Hook - returns navigate function
-def useNavigate() -> any {
-    router = React.useContext(__jacRouterContext);
-    if not router {
-        console.error("[Jac] useNavigate must be used inside Router");
-        return lambda path: str -> None {
-            window.location.hash = "#" + path;
-        };
-    }
-    return router.navigate;
-}
-
-# useLocation Hook - returns current location
-def useLocation() -> dict {
-    router = React.useContext(__jacRouterContext);
-    if not router {
-        console.error("[Jac] useLocation must be used inside Router");
-        return {"pathname": __jacGetHashPath()};
-    }
-    return {"pathname": router.location()};
-}
-
-# useRouter Hook - returns full router context
+# useRouter Hook - convenience hook that combines common router utilities
 def useRouter() -> dict {
-    router = React.useContext(__jacRouterContext);
-    if not router {
-        console.warn("[Jac] useRouter must be used inside Router");
-        return None;
-    }
-    return router;
+    navigate = reactRouterUseNavigate();
+    location = reactRouterUseLocation();
+    params = reactRouterUseParams();
+    
+    return {
+        "navigate": navigate,
+        "location": location,
+        "params": params,
+        "pathname": location.pathname,
+        "search": location.search,
+        "hash": location.hash
+    };
 }
 
 # navigate function - programmatic navigation (backward compatibility)
+# Note: Use useNavigate() hook inside components instead
 def navigate(path: str) -> None {
-    router = __jacReactiveContext.router;
-    if router {
-        router.navigate(path);
-    } else {
-        # Try to get from React context
-        # Note: This won't work outside components, but provides fallback
-        window.location.hash = "#" + path;
-    }
-}
-
-# Internal: Get current hash path
-def __jacGetHashPath() -> str {
-    hash = window.location.hash;
-    if hash {
-        return hash[1:];  # Remove '#'
-    }
-    return "";
+    window.location.hash = "#" + path;
 }
 
 # ============================================================================
