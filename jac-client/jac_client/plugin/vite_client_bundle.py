@@ -185,22 +185,20 @@ class ViteClientBundleBuilder(ClientBundleBuilder):
         # These need to be manually added since they're 'let' declarations, not 'def' functions
         router_exports = [
             "Router",
-            "Routes", 
+            "Routes",
             "Route",
             "Link",
             "Navigate",
             "useNavigate",
             "useLocation",
-            "useParams"
+            "useParams",
         ]
-        
+
         # Combine manifest exports with router exports
         all_exports = sorted(set(runtimeutils_exports_list + router_exports))
 
         export_block = (
-            f"export {{ {', '.join(all_exports)} }};\n"
-            if all_exports
-            else ""
+            f"export {{ {', '.join(all_exports)} }};\n" if all_exports else ""
         )
 
         combined_runtime_utils_js = f"{runtimeutils_js}\n{export_block}"

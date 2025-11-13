@@ -44,7 +44,7 @@ Verify your environment is ready by running:
 ```bash
 python --version    # Should show Python 3.12+
 node --version      # Should show Node 20+
-npm --version       # Should show npm 
+npm --version       # Should show npm
 jac --version       # Should show Jac is installed
 ```
 
