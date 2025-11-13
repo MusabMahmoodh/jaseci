@@ -31,7 +31,6 @@ Before starting, you should have:
   - Download: [https://www.python.org/downloads/](https://www.python.org/downloads/)
 - **Node.js 20 or higher** and npm installed (required for frontend dependencies)
   - Download: [https://nodejs.org/](https://nodejs.org/) (npm is included with Node.js)
-- **Jac** installed (`pip install jaclang`)
 - A code editor (VS Code recommended with Jac extension)
   - Download: [https://code.visualstudio.com/](https://code.visualstudio.com/)
 - Basic Python knowledge
@@ -51,8 +50,10 @@ jac --version       # Should show Jac is installed
 If Jac is not installed, run:
 
 ```bash
-pip install jaclang jac-client
+pip install jac-client
 ```
+
+> **Note:** If you have previously installed `jaclang`, please uninstall it first using `pip uninstall jaclang`. The required version of `jaclang` will be installed automatically as a dependency of `jac-client`, so you do not need to install it separately.
 
 ## What You'll Learn
 

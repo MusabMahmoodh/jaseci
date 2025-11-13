@@ -129,7 +129,7 @@ Here's what happens when you run `jac serve app.jac`:
 
 1. **Jac compiler** reads your `.jac` file
 2. **Backend code** (walkers) → Converted to API endpoints
-3. **Frontend code** (`cl` blocks) → Compiled to RJavaScript
+3. **Frontend code** (`cl` blocks) → Compiled to JavaScript
 4. **Single server** serves both frontend AND backend on the same port
 5. **Auto-reload** watches for changes and refreshes (Coming soon...)
 
