@@ -236,7 +236,7 @@ Now let's connect the frontend to these walkers:
 
 ```jac
 cl import from react {useState, useEffect}
-cl import from "@jac-client/utils" {__jacSpawn}
+cl import from "@jac-client/utils" {jacSpawn}
 
 cl {
     def DashboardPage() -> any {
@@ -248,7 +248,7 @@ cl {
             async def loadTodos() -> None {
                 try {
                     # Call read_todos walker
-                    let response = await __jacSpawn("read_todos", "", {});
+                    let response = await jacSpawn("read_todos", "", {});
 
                     # Get todos from response
                     let items = response.reports || [];
@@ -269,7 +269,7 @@ cl {
 
             try {
                 # Call create_todo walker with parameters
-                let response = await __jacSpawn("create_todo", "", {
+                let response = await jacSpawn("create_todo", "", {
                     "text": inputValue
                 });
 
@@ -288,7 +288,7 @@ cl {
         async def handleToggle(todoId: any) -> None {
             try {
                 # Call toggle_todo walker on specific todo node
-                await __jacSpawn("toggle_todo", todoId, {});
+                await jacSpawn("toggle_todo", todoId, {});
 
                 # Update local state
                 let updated = todos.map(lambda todo: any -> any {
@@ -361,10 +361,10 @@ cl {
 }
 ```
 
-### Understanding `__jacSpawn`:
+### Understanding `jacSpawn`:
 
 ```jac
-let response = await __jacSpawn(walkerName, nodeId, parameters);
+let response = await jacSpawn(walkerName, nodeId, parameters);
 ```
 
 - **`walkerName`** - Name of walker to call (string)
@@ -376,13 +376,13 @@ let response = await __jacSpawn(walkerName, nodeId, parameters);
 
 ```jac
 # Call walker on root
-__jacSpawn("read_todos", "", {})
+jacSpawn("read_todos", "", {})
 
 # Call walker with parameters
-__jacSpawn("create_todo", "", {"text": "New todo"})
+jacSpawn("create_todo", "", {"text": "New todo"})
 
 # Call walker on specific node
-__jacSpawn("toggle_todo", "node-id-123", {})
+jacSpawn("toggle_todo", "node-id-123", {})
 ```
 
 ## Data Persistence
@@ -458,7 +458,7 @@ walker update_todo {
 }
 
 # Frontend usage
-await __jacSpawn("update_todo", todoId, {"new_text": "Updated text"});
+await jacSpawn("update_todo", todoId, {"new_text": "Updated text"});
 ```
 
 ## Error Handling in Walkers
@@ -576,7 +576,7 @@ walker search_todos {
 - ✅ What walkers are (backend functions)
 - ✅ How to define data models with nodes
 - ✅ Creating walkers for CRUD operations
-- ✅ Calling walkers from frontend with `__jacSpawn`
+- ✅ Calling walkers from frontend with `jacSpawn`
 - ✅ Graph traversal syntax (`-->`, `` `?Node ``)
 - ✅ Data persistence (automatic!)
 - ✅ Walker parameters and specs

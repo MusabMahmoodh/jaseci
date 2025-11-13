@@ -203,7 +203,7 @@ Here's exactly how the todo app loads todos from the backend:
 
 ```jac
 cl import from react {useState, useEffect}
-cl import from "@jac-client/utils" {__jacSpawn}
+cl import from "@jac-client/utils" {jacSpawn}
 
 cl {
     def TodosPage() -> any {
@@ -214,7 +214,7 @@ cl {
         # Load todos when component mounts
         useEffect(lambda -> None {
             async def loadTodos() -> None {
-                result = await __jacSpawn("read_todos", "", {});
+                result = await jacSpawn("read_todos", "", {});
                 setTodos(result.reports if result.reports else []);
             }
             loadTodos();

@@ -14,7 +14,7 @@
 ## 1. Current Stack (React Style)
 - **State & Lifecycle**: React Hooks (useState, useEffect, etc.)
 - **Routing**: Declarative JSX components
-- **Backend**: `__jacSpawn` for walker communication
+- **Backend**: `jacSpawn` for walker communication
 - **Auth**: Built-in helpers (jacLogin, jacSignup, jacLogout)
 - **Bundler**: Vite + Babel
 - **CLI**: `jac create_jac_app`, `jac serve`
@@ -42,7 +42,7 @@
 - ⏳ Nested routes - Planned
 
 ### Backend Communication (@jac-client/utils)
-- ✅ `__jacSpawn(walker, node_id, params)` - Walker calling
+- ✅ `jacSpawn(walker, node_id, params)` - Walker calling
 - ✅ Automatic JWT token injection
 - ✅ Async/await support
 - ⏳ Retry logic - Planned
@@ -91,7 +91,7 @@
 - [ ] Component rendering (nested, props, conditional, lists)
 - [ ] React hooks (useState, useEffect with cleanup, useReducer)
 - [ ] Routing (navigation, protected routes, 404 handling)
-- [ ] Server communication (__jacSpawn with error handling)
+- [ ] Server communication (jacSpawn with error handling)
 - [ ] Authentication flow (login, signup, logout, protected pages)
 - [ ] Build & bundle (production builds, tree-shaking, hashing)
 
