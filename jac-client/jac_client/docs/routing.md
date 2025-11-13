@@ -229,7 +229,7 @@ cl import from "@jac-client/utils" { Link, useLocation }
 cl {
     def Navigation() -> any {
         let location = useLocation();
-        
+
         def linkStyle(path: str) -> dict {
             isActive = location.pathname == path;
             return {
@@ -241,7 +241,7 @@ cl {
                 "borderRadius": "4px"
             };
         }
-        
+
         return <nav style={{"display": "flex", "gap": "1rem", "padding": "1rem"}}>
             <Link to="/" style={linkStyle("/")}>Home</Link>
             <Link to="/about" style={linkStyle("/about")}>About</Link>
@@ -285,17 +285,17 @@ cl {
     }
 
         return <form onSubmit={handleLogin}>
-            <input 
-                type="text" 
+            <input
+                type="text"
                 value={username}
                 onChange={lambda e: any -> None { setUsername(e.target.value); }}
-                placeholder="Username" 
+                placeholder="Username"
             />
-            <input 
+            <input
                 type="password"
                 value={password}
-                onChange={lambda e: any -> None { setPassword(e.target.value); }} 
-                placeholder="Password" 
+                onChange={lambda e: any -> None { setPassword(e.target.value); }}
+                placeholder="Password"
             />
             <button type="submit">Login</button>
         </form>;
@@ -328,14 +328,14 @@ cl {
     def UserProfile() -> any {
         let params = useParams();
         let userId = params.id;
-        
+
         return <div>
             <h1>User Profile</h1>
             <p>Viewing profile for user ID: {userId}</p>
             <Link to="/">Back to Home</Link>
         </div>;
     }
-    
+
     def app() -> any {
         return <Router>
             <Routes>
@@ -364,7 +364,7 @@ cl import from "@jac-client/utils" { useLocation }
 cl {
     def CurrentPath() -> any {
         let location = useLocation();
-        
+
         return <div>
             <p>Current pathname: {location.pathname}</p>
             <p>Current hash: {location.hash}</p>
@@ -395,17 +395,17 @@ cl {
         if not jacIsLoggedIn() {
             return <Navigate to="/login" />;
         }
-        
+
         return <div>
             <h1>🎉 Dashboard</h1>
             <p>Welcome! You are logged in.</p>
             <p>This is protected content only visible to authenticated users.</p>
         </div>;
     }
-    
+
     def LoginPage() -> any {
         let navigate = useNavigate();
-        
+
         async def handleLogin(e: any) -> None {
             e.preventDefault();
             success = await jacLogin(username, password);
@@ -413,7 +413,7 @@ cl {
                 navigate("/dashboard");
             }
         }
-        
+
         return <form onSubmit={handleLogin}>
             <h2>Login</h2>
             <input type="text" placeholder="Username" />
@@ -421,7 +421,7 @@ cl {
             <button type="submit">Login</button>
         </form>;
     }
-    
+
     def app() -> any {
         return <Router>
             <Routes>
@@ -453,7 +453,7 @@ cl import from "@jac-client/utils" { Router, Routes, Route, Link, useLocation }
 cl {
     def Navigation() -> any {
         let location = useLocation();
-        
+
         def linkStyle(path: str) -> dict {
             isActive = location.pathname == path;
             return {
@@ -463,7 +463,7 @@ cl {
                 "fontWeight": "bold" if isActive else "normal"
             };
         }
-        
+
         return <nav style={{"padding": "1rem", "backgroundColor": "#f0f0f0"}}>
             <Link to="/" style={linkStyle("/")}>Home</Link>
             {" | "}
@@ -519,7 +519,7 @@ cl import from "@jac-client/utils" { Router, Routes, Route, Link, useParams }
 cl {
     def UserList() -> any {
         users = ["Alice", "Bob", "Charlie"];
-        
+
         return <div>
             <h1>👥 User List</h1>
             {users.map(lambda user: any -> any {
@@ -529,7 +529,7 @@ cl {
             })}
         </div>;
     }
-    
+
     def UserProfile() -> any {
         let params = useParams();
         let username = params.id;
@@ -628,14 +628,14 @@ def UserProfile() -> any {
 ```jac
 def Navigation() -> any {
     let location = useLocation();
-    
+
     def isActive(path: str) -> bool {
         return location.pathname == path;
     }
-    
+
     return <nav>
-        <Link 
-            to="/" 
+        <Link
+            to="/"
             style={{"fontWeight": "bold" if isActive("/") else "normal"}}
         >
             Home
@@ -649,7 +649,7 @@ def Navigation() -> any {
 ## Summary
 
 - **Simple & Declarative**: Use `<Router>`, `<Routes>`, `<Route>` components
-- **Hash-based URLs**: Uses `#/path` for maximum compatibility  
+- **Hash-based URLs**: Uses `#/path` for maximum compatibility
 - **Modern Hooks**: `useNavigate()`, `useLocation()`, `useParams()`
 - **Protected Routes**: Use `<Navigate>` component for redirects
 - **URL Parameters**: Dynamic routes with `:param` syntax

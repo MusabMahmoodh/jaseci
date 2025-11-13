@@ -348,7 +348,7 @@ cl import from "@jac-client/utils" {useParams}
 def TodoDetailPage() -> any {
     let params = useParams();
     let todoId = params.id;  # Access the :id parameter
-    
+
     return <div>
         <h1>Todo Details</h1>
         <p>Viewing todo with ID: {todoId}</p>
@@ -373,7 +373,7 @@ cl {
         if not jacIsLoggedIn() {
             return <Navigate to="/login" />;
         }
-        
+
         return <div>
             <h1>🎉 Private Dashboard</h1>
             <p>You are logged in!</p>
@@ -385,7 +385,7 @@ cl {
             <Routes>
                 <Route path="/" element={<HomePage />} />
                 <Route path="/login" element={<LoginPage />} />
-                
+
                 {/* Protected route - checks auth inside component */}
                 <Route path="/dashboard" element={<DashboardPage />} />
             </Routes>
