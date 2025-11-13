@@ -24,7 +24,19 @@ Here's the entire app in one file - a clean implementation:
 ```jac
 # Full Stack Todo App with Auth and Routing
 cl import from react {useState, useEffect}
-cl import from "@jac-client/utils" {Router, Routes, Route, Link, jacSpawn, jacSignup, jacLogin, jacLogout, jacIsLoggedIn}
+cl import from "@jac-client/utils" {
+    Router,
+    Routes,
+    Route,
+    Link,
+    Navigate,
+    useNavigate,
+    jacSpawn,
+    jacSignup,
+    jacLogin,
+    jacLogout,
+    jacIsLoggedIn
+}
 
 # Backend - Todo Node
 node Todo {
@@ -69,6 +81,43 @@ cl {
     # Navigation
     def Navigation() -> any {
         let isLoggedIn = jacIsLoggedIn();
+        let navigate = useNavigate();
+
+        def handleLogout(e: any) -> None {
+            e.preventDefault();
+            jacLogout();
+            navigate("/login");
+        }
+
+        if isLoggedIn {
+            return <nav style={{
+                "padding": "12px 24px",
+                "background": "#3b82f6",
+                "color": "#ffffff",
+                "display": "flex",
+                "justifyContent": "space-between"
+            }}>
+                <div style={{"fontWeight": "600"}}>Todo App</div>
+                <div style={{"display": "flex", "gap": "16px"}}>
+                    <Link to="/todos" style={{"color": "#ffffff", "textDecoration": "none"}}>
+                        Todos
+                    </Link>
+                    <button
+                        onClick={handleLogout}
+                        style={{
+                            "background": "none",
+                            "color": "#ffffff",
+                            "border": "1px solid #ffffff",
+                            "padding": "2px 10px",
+                            "borderRadius": "4px",
+                            "cursor": "pointer"
+                        }}
+                    >
+                        Logout
+                    </button>
+                </div>
+            </nav>;
+        }
 
         return <nav style={{
             "padding": "12px 24px",
@@ -79,27 +128,12 @@ cl {
         }}>
             <div style={{"fontWeight": "600"}}>Todo App</div>
             <div style={{"display": "flex", "gap": "16px"}}>
-                {(<>
-                    <Link to="/todos" style={{"color": "#ffffff", "textDecoration": "none"}}>Todos</Link>
-                    <button
-                        onClick={lambda -> None {
-                            jacLogout();
-                            window.location.hash = "#/login";
-                            window.location.reload();
-                        }}
-                        style={{
-                            "background": "none",
-                            "color": "#ffffff",
-                            "border": "1px solid #ffffff",
-                            "padding": "2px 10px",
-                            "borderRadius": "4px",
-                            "cursor": "pointer"
-                        }}
-                    >Logout</button>
-                </>) if isLoggedIn else (<>
-                    <Link to="/login" style={{"color": "#ffffff", "textDecoration": "none"}}>Login</Link>
-                    <Link to="/signup" style={{"color": "#ffffff", "textDecoration": "none"}}>Sign Up</Link>
-                </>)}
+                <Link to="/login" style={{"color": "#ffffff", "textDecoration": "none"}}>
+                    Login
+                </Link>
+                <Link to="/signup" style={{"color": "#ffffff", "textDecoration": "none"}}>
+                    Sign Up
+                </Link>
             </div>
         </nav>;
     }
@@ -109,6 +143,7 @@ cl {
         let [username, setUsername] = useState("");
         let [password, setPassword] = useState("");
         let [error, setError] = useState("");
+        let navigate = useNavigate();
 
         async def handleLogin(e: any) -> None {
             e.preventDefault();
@@ -119,11 +154,25 @@ cl {
             }
             success = await jacLogin(username, password);
             if success {
-                window.location.hash = "#/todos";
-                window.location.reload();
+                navigate("/todos");
             } else {
                 setError("Invalid credentials");
             }
+        }
+
+        def handleUsernameChange(e: any) -> None {
+            setUsername(e.target.value);
+        }
+
+        def handlePasswordChange(e: any) -> None {
+            setPassword(e.target.value);
+        }
+
+        let errorDisplay = None;
+        if error {
+            errorDisplay = <div style={{"color": "#dc2626", "fontSize": "14px", "marginBottom": "10px"}}>
+                {error}
+            </div>;
         }
 
         return <div style={{
@@ -145,7 +194,7 @@ cl {
                     <input
                         type="text"
                         value={username}
-                        onChange={lambda e: any -> None { setUsername(e.target.value); }}
+                        onChange={handleUsernameChange}
                         placeholder="Username"
                         style={{
                             "width": "100%",
@@ -159,7 +208,7 @@ cl {
                     <input
                         type="password"
                         value={password}
-                        onChange={lambda e: any -> None { setPassword(e.target.value); }}
+                        onChange={handlePasswordChange}
                         placeholder="Password"
                         style={{
                             "width": "100%",
@@ -170,7 +219,7 @@ cl {
                             "boxSizing": "border-box"
                         }}
                     />
-                    {(<div style={{"color": "#dc2626", "fontSize": "14px", "marginBottom": "10px"}}>{error}</div>) if error else None}
+                    {errorDisplay}
                     <button
                         type="submit"
                         style={{
@@ -197,6 +246,7 @@ cl {
         let [username, setUsername] = useState("");
         let [password, setPassword] = useState("");
         let [error, setError] = useState("");
+        let navigate = useNavigate();
 
         async def handleSignup(e: any) -> None {
             e.preventDefault();
@@ -207,11 +257,25 @@ cl {
             }
             result = await jacSignup(username, password);
             if result["success"] {
-                window.location.hash = "#/todos";
-                window.location.reload();
+                navigate("/todos");
             } else {
                 setError(result["error"] if result["error"] else "Signup failed");
             }
+        }
+
+        def handleUsernameChange(e: any) -> None {
+            setUsername(e.target.value);
+        }
+
+        def handlePasswordChange(e: any) -> None {
+            setPassword(e.target.value);
+        }
+
+        let errorDisplay = None;
+        if error {
+            errorDisplay = <div style={{"color": "#dc2626", "fontSize": "14px", "marginBottom": "10px"}}>
+                {error}
+            </div>;
         }
 
         return <div style={{
@@ -233,7 +297,7 @@ cl {
                     <input
                         type="text"
                         value={username}
-                        onChange={lambda e: any -> None { setUsername(e.target.value); }}
+                        onChange={handleUsernameChange}
                         placeholder="Username"
                         style={{
                             "width": "100%",
@@ -247,7 +311,7 @@ cl {
                     <input
                         type="password"
                         value={password}
-                        onChange={lambda e: any -> None { setPassword(e.target.value); }}
+                        onChange={handlePasswordChange}
                         placeholder="Password"
                         style={{
                             "width": "100%",
@@ -258,7 +322,7 @@ cl {
                             "boxSizing": "border-box"
                         }}
                     />
-                    {(<div style={{"color": "#dc2626", "fontSize": "14px", "marginBottom": "10px"}}>{error}</div>) if error else None}
+                    {errorDisplay}
                     <button
                         type="submit"
                         style={{
@@ -282,6 +346,11 @@ cl {
 
     # Todos Page (Protected)
     def TodosPage() -> any {
+        # Check if user is logged in, redirect if not
+        if not jacIsLoggedIn() {
+            return <Navigate to="/login" />;
+        }
+
         let [todos, setTodos] = useState([]);
         let [input, setInput] = useState("");
         let [filter, setFilter] = useState("all");
@@ -478,15 +547,24 @@ cl {
         </div>;
     }
 
-    # Main App
+    # Home/Landing Page - auto-redirect
+    def HomePage() -> any {
+        if jacIsLoggedIn() {
+            return <Navigate to="/todos" />;
+        }
+        return <Navigate to="/login" />;
+    }
+
+    # Main App with React Router
     def app() -> any {
-        return <Router defaultRoute="/login">
+        return <Router>
             <div style={{"fontFamily": "system-ui, sans-serif"}}>
                 <Navigation />
                 <Routes>
-                    <Route path="/login" component={LoginPage} />
-                    <Route path="/signup" component={SignupPage} />
-                    <Route path="/todos" component={TodosPage} guard={jacIsLoggedIn} />
+                    <Route path="/" element={<HomePage />} />
+                    <Route path="/login" element={<LoginPage />} />
+                    <Route path="/signup" element={<SignupPage />} />
+                    <Route path="/todos" element={<TodosPage />} />
                 </Routes>
             </div>
         </Router>;

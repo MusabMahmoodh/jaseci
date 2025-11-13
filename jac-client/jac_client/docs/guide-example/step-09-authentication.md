@@ -93,13 +93,14 @@ Let's build a simple, clean login form:
 
 ```jac
 cl import from react {useState}
-cl import from "@jac-client/utils" {jacLogin}
+cl import from "@jac-client/utils" {jacLogin, useNavigate}
 
 cl {
     def LoginPage() -> any {
         let [username, setUsername] = useState("");
         let [password, setPassword] = useState("");
         let [error, setError] = useState("");
+        let navigate = useNavigate();
 
         async def handleLogin(e: any) -> None {
             e.preventDefault();
@@ -115,8 +116,7 @@ cl {
             success = await jacLogin(username, password);
             if success {
                 # Redirect to todos page
-                window.location.hash = "#/todos";
-                window.location.reload();
+                navigate("/todos");
             } else {
                 setError("Invalid credentials");
             }
@@ -193,7 +193,7 @@ cl {
 **Key Features:**
 - Simple state with `useState` for username, password, and error
 - Direct call to `jacLogin()` - no wrapper needed
-- Redirects to `/todos` on success using `window.location`
+- Redirects to `/todos` on success using `navigate()` from `useNavigate()`
 - Clean error handling
 
 ## Creating the Signup Page
@@ -206,6 +206,7 @@ cl {
         let [username, setUsername] = useState("");
         let [password, setPassword] = useState("");
         let [error, setError] = useState("");
+        let navigate = useNavigate();
 
         async def handleSignup(e: any) -> None {
             e.preventDefault();
@@ -221,8 +222,7 @@ cl {
             result = await jacSignup(username, password);
             if result["success"] {
                 # Redirect to todos page
-                window.location.hash = "#/todos";
-                window.location.reload();
+                navigate("/todos");
             } else {
                 setError(result["error"] if result["error"] else "Signup failed");
             }
@@ -404,18 +404,28 @@ cl {
         </div>;
     }
 
-    def app() -> any {
-        return <Router defaultRoute="/login">
-            <Routes>
-                <Route path="/login" component={LoginPage} />
-                <Route path="/signup" component={SignupPage} />
+    # Protected Dashboard Component
+    def DashboardPage() -> any {
+        # Check authentication
+        if not jacIsLoggedIn() {
+            return <Navigate to="/login" />;
+        }
+        
+        # Your todo app logic here...
+        return <div>
+            <h1>My Todos</h1>
+            {/* Todo app UI */}
+        </div>;
+    }
 
-                {/* Protected route */}
-                <Route
-                    path="/dashboard"
-                    component={DashboardPage}
-                    guard={jacIsLoggedIn}  # Requires login!
-                />
+    def app() -> any {
+        return <Router>
+            <Routes>
+                <Route path="/login" element={<LoginPage />} />
+                <Route path="/signup" element={<SignupPage />} />
+                
+                {/* Protected route - checks auth inside component */}
+                <Route path="/dashboard" element={<DashboardPage />} />
             </Routes>
         </Router>;
     }
@@ -423,7 +433,7 @@ cl {
 ```
 
 **What happens:**
-- If not logged in → Redirected to `/login`
+- If not logged in → `<Navigate>` redirects to `/login`
 - If logged in → Dashboard shows
 
 ## Adding Logout
@@ -434,11 +444,10 @@ Let's add a logout button in the header:
 cl {
     def AppHeader() -> any {
         let navigate = useNavigate();
-        let auth = useAuth();
         let isLoggedIn = jacIsLoggedIn();
 
         def handleLogout() -> None {
-            auth["logout"]();
+            jacLogout();
             navigate("/login");
         }
 
@@ -575,7 +584,7 @@ Jac automatically handles session persistence - users stay logged in across page
 **Check**: Is `jacIsLoggedIn()` returning `True`? Check browser console for errors.
 
 ### Issue: Can access protected route without login
-**Check**: Did you add `guard={jacIsLoggedIn}` to the Route?
+**Check**: Did you add the auth check `if not jacIsLoggedIn() { return <Navigate to="/login" />; }` at the top of your protected component?
 
 ### Issue: Logout doesn't work
 **Solution**: Call `jacLogout()` and then navigate to login page.
@@ -585,9 +594,9 @@ Jac automatically handles session persistence - users stay logged in across page
 - ✅ Jac's built-in authentication system
 - ✅ Creating login and signup forms
 - ✅ Using `jacLogin`, `jacSignup`, `jacLogout`, `jacIsLoggedIn`
-- ✅ Protected routes with guards
+- ✅ Protected routes with `<Navigate>` components
 - ✅ User isolation (each user sees only their data)
-- ✅ Logout functionality
+- ✅ Logout functionality with `useNavigate()`
 - ✅ Conditional UI based on auth state
 
 ## Next Step

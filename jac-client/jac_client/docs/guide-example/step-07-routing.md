@@ -80,7 +80,7 @@ cl {
 
     # Main App with Routing
     def app() -> any {
-        return <Router defaultRoute="/">
+        return <Router>
             <div>
                 {/* Navigation Bar */}
                 <nav style={{
@@ -105,8 +105,8 @@ cl {
 
                 {/* Routes */}
                 <Routes>
-                    <Route path="/" component={HomePage} />
-                    <Route path="/about" component={AboutPage} />
+                    <Route path="/" element={<HomePage />} />
+                    <Route path="/about" element={<AboutPage />} />
                 </Routes>
             </div>
         </Router>;
@@ -118,8 +118,7 @@ cl {
 
 ### Breaking It Down:
 
-1. **`<Router>`** - Wraps your entire app
-   - `defaultRoute="/"` - Where to go if URL doesn't match any route
+1. **`<Router>`** - Wraps your entire app and manages routing state
 
 2. **`<Link to="/">`** - Creates clickable navigation
    - Like `<a href="">` but prevents page reload
@@ -128,7 +127,7 @@ cl {
 
 4. **`<Route>`** - Defines what component to show for each URL
    - `path="/"` - URL pattern
-   - `component={HomePage}` - Component to render
+   - `element={<HomePage />}` - Component to render (must use JSX)
 
 ## Creating Our Todo App Pages
 
@@ -288,13 +287,13 @@ cl {
 
     # Main App
     def app() -> any {
-        return <Router defaultRoute="/login">
+        return <Router>
             <div style={{"fontFamily": "system-ui, sans-serif"}}>
                 <Navigation />
                 <Routes>
-                    <Route path="/login" component={LoginPage} />
-                    <Route path="/signup" component={SignupPage} />
-                    <Route path="/todos" component={TodosPage} guard={jacIsLoggedIn} />
+                    <Route path="/login" element={<LoginPage />} />
+                    <Route path="/signup" element={<SignupPage />} />
+                    <Route path="/todos" element={<TodosPage />} />
                 </Routes>
             </div>
         </Router>;
@@ -303,10 +302,9 @@ cl {
 ```
 
 **Key changes from examples:**
-- Default route is `/login` for authentication-first approach
 - Added `<Navigation />` component at the top
 - Routes are: `/login`, `/signup`, and `/todos` (not `/dashboard`)
-- `/todos` route is protected with `guard={jacIsLoggedIn}`
+- Protected routes check auth inside the component (see below)
 ```
 
 ## Programmatic Navigation
@@ -341,14 +339,19 @@ def LoginPage() -> any {
 Pass data through the URL:
 
 ```jac
-# Define route with parameter
-<Route path="/todo/:id" component={TodoDetailPage} />
+cl import from "@jac-client/utils" {useParams}
 
-# Component receives parameters
-def TodoDetailPage(id: str) -> any {
+# Define route with parameter
+<Route path="/todo/:id" element={<TodoDetailPage />} />
+
+# Component accesses parameters via useParams hook
+def TodoDetailPage() -> any {
+    let params = useParams();
+    let todoId = params.id;  # Access the :id parameter
+    
     return <div>
         <h1>Todo Details</h1>
-        <p>Viewing todo with ID: {id}</p>
+        <p>Viewing todo with ID: {todoId}</p>
     </div>;
 }
 
@@ -356,34 +359,35 @@ def TodoDetailPage(id: str) -> any {
 <Link to="/todo/123">View Todo 123</Link>
 ```
 
-## Protected Routes (Guards)
+## Protected Routes
 
 Prevent access to pages that require authentication:
 
 ```jac
-cl import from "@jac-client/utils" {Router, Routes, Route, jacIsLoggedIn}
+cl import from "@jac-client/utils" {Router, Routes, Route, Navigate, jacIsLoggedIn}
 
 cl {
     # Protected Dashboard - requires login
     def DashboardPage() -> any {
+        # Check authentication at the start
+        if not jacIsLoggedIn() {
+            return <Navigate to="/login" />;
+        }
+        
         return <div>
-            <h1>Private Dashboard</h1>
+            <h1>🎉 Private Dashboard</h1>
             <p>You are logged in!</p>
         </div>;
     }
 
     def app() -> any {
-        return <Router defaultRoute="/">
+        return <Router>
             <Routes>
-                <Route path="/" component={HomePage} />
-                <Route path="/login" component={LoginPage} />
-
-                {/* Protected route with guard */}
-                <Route
-                    path="/dashboard"
-                    component={DashboardPage}
-                    guard={jacIsLoggedIn}  # Only accessible if logged in
-                />
+                <Route path="/" element={<HomePage />} />
+                <Route path="/login" element={<LoginPage />} />
+                
+                {/* Protected route - checks auth inside component */}
+                <Route path="/dashboard" element={<DashboardPage />} />
             </Routes>
         </Router>;
     }
@@ -445,15 +449,15 @@ cl {
     }
 
     def app() -> any {
-        return <Router defaultRoute="/">
+        return <Router>
             <div>
                 <Header />  {/* Shows on all pages */}
 
                 <main style={{"minHeight": "calc(100vh - 64px)"}}>
                     <Routes>
-                        <Route path="/" component={HomePage} />
-                        <Route path="/login" component={LoginPage} />
-                        <Route path="/dashboard" component={DashboardPage} />
+                        <Route path="/" element={<HomePage />} />
+                        <Route path="/login" element={<LoginPage />} />
+                        <Route path="/dashboard" element={<DashboardPage />} />
                     </Routes>
                 </main>
             </div>
@@ -523,10 +527,10 @@ def NotFoundPage() -> any {
 
 # Add as last route (catches everything)
 <Routes>
-    <Route path="/" component={HomePage} />
-    <Route path="/login" component={LoginPage} />
-    <Route path="/dashboard" component={DashboardPage} />
-    <Route path="*" component={NotFoundPage} />  {/* Catch-all */}
+    <Route path="/" element={<HomePage />} />
+    <Route path="/login" element={<LoginPage />} />
+    <Route path="/dashboard" element={<DashboardPage />} />
+    <Route path="*" element={<NotFoundPage />} />  {/* Catch-all */}
 </Routes>
 ```
 
@@ -539,8 +543,8 @@ def MainLayout() -> any {
     return <div>
         <Header />
         <Routes>
-            <Route path="/" component={HomePage} />
-            <Route path="/about" component={AboutPage} />
+            <Route path="/" element={<HomePage />} />
+            <Route path="/about" element={<AboutPage />} />
         </Routes>
         <Footer />
     </div>;
