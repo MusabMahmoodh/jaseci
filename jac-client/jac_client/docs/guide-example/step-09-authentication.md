@@ -410,7 +410,7 @@ cl {
         if not jacIsLoggedIn() {
             return <Navigate to="/login" />;
         }
-        
+
         # Your todo app logic here...
         return <div>
             <h1>My Todos</h1>
@@ -423,7 +423,7 @@ cl {
             <Routes>
                 <Route path="/login" element={<LoginPage />} />
                 <Route path="/signup" element={<SignupPage />} />
-                
+
                 {/* Protected route - checks auth inside component */}
                 <Route path="/dashboard" element={<DashboardPage />} />
             </Routes>
