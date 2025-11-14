@@ -162,10 +162,10 @@ async def addTodo() -> None {
     if not input.trim() {
         return;
     }
-    
+
     # Call backend walker
     result = root spawn create_todo(text=input.trim());
-    
+
     # Add the new todo to local state
     setTodos(todos.concat([result.reports[0][0]]));
     setInput("");
@@ -181,7 +181,7 @@ Update your toggle and delete functions:
 async def toggleTodo(id: any) -> None {
     # Call backend walker
     id spawn toggle_todo();
-    
+
     # Update local state
     setTodos(todos.map(lambda todo: any -> any {
         if todo._jac_id == id {
@@ -199,7 +199,7 @@ async def toggleTodo(id: any) -> None {
 async def deleteTodo(id: any) -> None {
     # Call backend walker
     id spawn delete_todo();
-    
+
     # Update local state
     setTodos(todos.filter(lambda todo: any -> bool {
         return todo._jac_id != id;
@@ -227,7 +227,7 @@ When rendering todos, use `_jac_id` instead of custom id:
 </div>
 ```
 
-**Try it!** 
+**Try it!**
 1. Add some todos
 2. Check/uncheck them
 3. Delete some

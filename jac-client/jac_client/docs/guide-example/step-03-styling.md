@@ -22,8 +22,8 @@ cl {
             "padding": "10px",
             "borderBottom": "1px solid #e5e7eb"
         }}>
-            <input 
-                type="checkbox" 
+            <input
+                type="checkbox"
                 checked={props.done}
                 style={{"cursor": "pointer"}}
             />

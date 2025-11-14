@@ -11,7 +11,7 @@ Think of building a house:
 
 Traditionally, you'd need:
 - **JavaScript/React** for frontend
-- **Python/Node.js** for backend  
+- **Python/Node.js** for backend
 - **SQL** for database
 - **REST APIs** to connect them
 
@@ -110,7 +110,7 @@ We'll build the app in 11 progressive steps:
 
 ## Ready to Start?
 
-Let's build your first full-stack app! 
+Let's build your first full-stack app!
 
 👉 **[Continue to Step 1: Project Setup](./step-01-setup.md)**
 

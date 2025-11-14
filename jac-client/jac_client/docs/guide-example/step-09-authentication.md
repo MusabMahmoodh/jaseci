@@ -39,12 +39,12 @@ def LoginPage() -> any {
     async def handleLogin(e: any) -> None {
         e.preventDefault();
         setError("");
-        
+
         if not username or not password {
             setError("Please fill in all fields");
             return;
         }
-        
+
         success = await jacLogin(username, password);
         if success {
             console.log("Login successful!");
@@ -158,12 +158,12 @@ def SignupPage() -> any {
     async def handleSignup(e: any) -> None {
         e.preventDefault();
         setError("");
-        
+
         if not username or not password {
             setError("Please fill in all fields");
             return;
         }
-        
+
         result = await jacSignup(username, password);
         if result["success"] {
             console.log("Signup successful!");
@@ -459,7 +459,7 @@ def TodosPage() -> any {
     if not jacIsLoggedIn() {
         return <div>Please login</div>;
     }
-    
+
     # User is logged in, show todos
     return <div>Your todos here</div>;
 }
@@ -579,7 +579,7 @@ def LoginPage() -> any {
 
 ## ➡️ Next Step
 
-Great! You now have authentication, but you're still showing only one page at a time. 
+Great! You now have authentication, but you're still showing only one page at a time.
 
 In the next step, we'll add **routing** so users can navigate between login, signup, and todos pages!
 

@@ -71,12 +71,12 @@ Update the login handler to navigate to todos after successful login:
 async def handleLogin(e: any) -> None {
     e.preventDefault();
     setError("");
-    
+
     if not username or not password {
         setError("Please fill in all fields");
         return;
     }
-    
+
     success = await jacLogin(username, password);
     if success {
         window.location.href = "/page/app#/todos";  # Navigate to todos
@@ -93,12 +93,12 @@ Update the signup handler:
 async def handleSignup(e: any) -> None {
     e.preventDefault();
     setError("");
-    
+
     if not username or not password {
         setError("Please fill in all fields");
         return;
     }
-    
+
     result = await jacSignup(username, password);
     if result["success"] {
         window.location.href = "/page/app#/todos";  # Navigate to todos
@@ -379,7 +379,7 @@ def ProtectedPage() -> any {
     if not jacIsLoggedIn() {
         return <Navigate to="/login" />;
     }
-    
+
     # User is authenticated, show page
     return <div>Protected content</div>;
 }
@@ -395,14 +395,14 @@ This pattern:
 ```jac
 def Navigation() -> any {
     let isLoggedIn = jacIsLoggedIn();
-    
+
     if isLoggedIn {
         return <nav>
             <Link to="/todos">Todos</Link>
             <button onClick={logout}>Logout</button>
         </nav>;
     }
-    
+
     return <nav>
         <Link to="/login">Login</Link>
         <Link to="/signup">Sign Up</Link>

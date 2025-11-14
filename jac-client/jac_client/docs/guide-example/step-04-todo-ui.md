@@ -146,7 +146,7 @@ cl {
             <TodoInput />
             <TodoFilters />
             <TodoList />
-            
+
             # Stats footer
             <div style={{
                 "marginTop": "16px",
@@ -163,7 +163,7 @@ cl {
 }
 ```
 
-**Try it!** You should now see a complete todo application interface! 
+**Try it!** You should now see a complete todo application interface!
 
 It looks like a real app, but clicking buttons won't do anything yet (we'll add that next).
 

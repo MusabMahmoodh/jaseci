@@ -146,7 +146,7 @@ return <div>
    ```jac
    # ✅ Correct
    return <div><h1>Title</h1><p>Text</p></div>;
-   
+
    # ❌ Wrong (two root elements)
    return <h1>Title</h1><p>Text</p>;
    ```
@@ -227,7 +227,7 @@ Then visit `http://localhost:8080/page/app`
 
 ### Issue: Changes not showing
 
-**Solution**: 
+**Solution**:
 - Stop the server (Ctrl+C)
 - Restart: `jac serve app.jac`
 - Refresh browser

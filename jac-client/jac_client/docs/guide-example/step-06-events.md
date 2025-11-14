@@ -122,12 +122,12 @@ cl {
             if not input.trim() {
                 return;  # Don't add empty todos
             }
-            
+
             let newTodo = {
                 "text": input.trim(),
                 "done": false
             };
-            
+
             setTodos(todos.concat([newTodo]));
             setInput("");  # Clear input
         }
@@ -138,12 +138,12 @@ cl {
             "padding": "20px"
         }}>
             <h1>My Todos</h1>
-            <TodoInput 
+            <TodoInput
                 input={input}
                 setInput={setInput}
                 addTodo={addTodo}
             />
-            
+
             # Display todos
             <div>
                 {todos.map(lambda todo: any -> any {
@@ -277,13 +277,13 @@ cl {
             if not input.trim() {
                 return;
             }
-            
+
             let newTodo = {
                 "id": Date.now(),  # Use timestamp as unique ID
                 "text": input.trim(),
                 "done": false
             };
-            
+
             setTodos(todos.concat([newTodo]));
             setInput("");
         }
@@ -315,12 +315,12 @@ cl {
             "padding": "20px"
         }}>
             <h1>My Todos</h1>
-            <TodoInput 
+            <TodoInput
                 input={input}
                 setInput={setInput}
                 addTodo={addTodo}
             />
-            
+
             <div>
                 {todos.map(lambda todo: any -> any {
                     return <TodoItem
@@ -436,7 +436,7 @@ cl {
             <h1>My Todos</h1>
             <TodoInput input={input} setInput={setInput} addTodo={addTodo} />
             <TodoFilters filter={filter} setFilter={setFilter} />
-            
+
             <div>
                 {filteredTodos.map(lambda todo: any -> any {
                     return <TodoItem
@@ -517,7 +517,7 @@ def Parent() -> any {
     def handleClick() -> None {
         console.log("Clicked!");
     }
-    
+
     # Pass function to child
     return <Child onClick={handleClick} />;
 }
@@ -537,11 +537,11 @@ This lets children trigger parent behavior!
 ```jac
 def app() -> any {
     let [count, setCount] = useState(0);
-    
+
     def increment() -> None {
         setCount(count + 1);  # Update state
     }
-    
+
     return <button onClick={increment}>
         Count: {count}
     </button>;

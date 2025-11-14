@@ -112,7 +112,7 @@ cl {
         # Load todos
         useEffect(lambda -> None {
             console.log("Loading todos...");
-            
+
             # Simulate loading delay
             setTimeout(lambda -> None {
                 let saved = localStorage.getItem("todos");
@@ -178,7 +178,7 @@ cl {
 class TodoApp:
     def __init__(self):
         self.load_from_database()  # Side effect: reads from DB
-        
+
 # Jac
 def app() -> any {
     useEffect(lambda -> None {
@@ -232,7 +232,7 @@ You can use multiple `useEffect` hooks for different purposes:
 ```jac
 def app() -> any {
     let [todos, setTodos] = useState([]);
-    
+
     # Effect 1: Load data once
     useEffect(lambda -> None {
         let saved = localStorage.getItem("todos");
@@ -240,12 +240,12 @@ def app() -> any {
             setTodos(JSON.parse(saved));
         }
     }, []);
-    
+
     # Effect 2: Save when todos change
     useEffect(lambda -> None {
         localStorage.setItem("todos", JSON.stringify(todos));
     }, [todos]);
-    
+
     # Effect 3: Log count changes
     useEffect(lambda -> None {
         console.log("Todo count:", todos.length);
@@ -348,7 +348,7 @@ useEffect(lambda -> None {
     let timerId = setInterval(lambda -> None {
         console.log("Tick");
     }, 1000);
-    
+
     # Return cleanup function
     return lambda -> None {
         clearInterval(timerId);

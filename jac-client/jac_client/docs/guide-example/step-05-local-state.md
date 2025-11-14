@@ -48,7 +48,7 @@ cl {
     def app() -> any {
         # Create state with useState
         let [todos, setTodos] = useState([]);
-        
+
         return <div style={{"padding": "20px"}}>
             <h1>My Todos</h1>
             <p>Total: {todos.length}</p>
@@ -104,7 +104,7 @@ cl {
     def app() -> any {
         # State for input field
         let [input, setInput] = useState("");
-        
+
         return <div style={{
             "maxWidth": "600px",
             "margin": "20px auto",
@@ -172,11 +172,11 @@ cl {
             "borderRadius": "8px"
         }}>
             <h1>My Todos</h1>
-            
+
             # Display todos
             <div>
                 {todos.map(lambda todo: any -> any {
-                    return <TodoItem 
+                    return <TodoItem
                         text={todo.text}
                         done={todo.done}
                     />;
@@ -255,7 +255,7 @@ cl {
         }}>
             <h1>My Todos</h1>
             <TodoFilters filter={filter} />
-            
+
             # Show current filter
             <p>Current filter: {filter}</p>
         </div>;
@@ -284,7 +284,7 @@ cl {
 class TodoApp:
     def __init__(self):
         self.todos = []  # This is state
-        
+
     def add_todo(self, text):
         self.todos.append(text)  # Changing state
         self.render()  # Manually update UI
@@ -294,7 +294,7 @@ class TodoApp:
 # Jac with React
 def app() -> any {
     let [todos, setTodos] = useState([]);  # This is state
-    
+
     # When you call setTodos(), React automatically updates the UI!
 }
 ```
@@ -335,7 +335,7 @@ let [user, setUser] = useState({"name": "Alice", "age": 30});
 ```jac
 def app() -> any {
     let count = 0;  # Normal variable
-    
+
     # Button click would change count, but UI won't update!
     return <button>Count: {count}</button>;
 }
@@ -346,7 +346,7 @@ def app() -> any {
 ```jac
 def app() -> any {
     let [count, setCount] = useState(0);  # State
-    
+
     # When setCount is called, React re-renders the component!
     return <button>Count: {count}</button>;
 }
@@ -362,7 +362,7 @@ def app() -> any {
     let [input, setInput] = useState("");
     let [filter, setFilter] = useState("all");
     let [loading, setLoading] = useState(false);
-    
+
     # Use them independently
 }
 ```
@@ -431,7 +431,7 @@ State flows down through props:
 ```jac
 def Parent() -> any {
     let [name, setName] = useState("Alice");
-    
+
     # Pass state down as props
     return <Child name={name} />;
 }

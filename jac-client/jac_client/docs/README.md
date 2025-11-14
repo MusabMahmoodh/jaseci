@@ -100,7 +100,7 @@ cl {
 
     def app() -> any {
         let [todos, setTodos] = useState([]);
-        
+
         useEffect(lambda -> None {
             async def loadTodos() -> None {
                 result = root spawn read_todos();
@@ -282,7 +282,7 @@ cl {
                 }}
             />
             <button onClick={addTodo}>Add</button>
-            
+
             <div>
                 {filteredTodos.map(lambda todo: any -> any {
                     return <div key={todo._jac_id}>
@@ -318,7 +318,7 @@ def Button() -> any {
 ```jac
 def InputField() -> any {
     let [value, setValue] = useState("");
-    
+
     return <input
         type="text"
         value={value}
@@ -597,7 +597,7 @@ cl {
                 }}
             />
             <button onClick={addTodo}>Add Todo</button>
-            
+
             <div>
                 {todos.map(lambda todo: any -> any {
                     return <div key={todo._jac_id}>

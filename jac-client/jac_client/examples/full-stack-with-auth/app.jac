@@ -555,8 +555,8 @@ cl {
 
         return <div>
             {filteredTodos.map(
-                lambda  todo: any  -> any{ 
-                    return <TodoItem 
+                lambda  todo: any  -> any{
+                    return <TodoItem
                         key={todo._jac_id}
                         todo={todo}
                         toggleTodo={toggleTodo}
@@ -602,7 +602,7 @@ cl {
             id spawn toggle_todo();
             setTodos(
                 todos.map(
-                    lambda  todo: any  -> any{ 
+                    lambda  todo: any  -> any{
                         if todo._jac_id == id {
                             return {
                                 "_jac_id": todo._jac_id,
@@ -610,7 +610,7 @@ cl {
                                 "done": not todo.done
                             };
                         }
-                        return todo; 
+                        return todo;
                     }
                 )
             );
@@ -656,16 +656,16 @@ cl {
             >
                 My Todos
             </h1>
-            <TodoInput 
+            <TodoInput
                 input={input}
                 setInput={setInput}
                 addTodo={addTodo}
             />
-            <TodoFilters 
+            <TodoFilters
                 filter={filter}
                 setFilter={setFilter}
             />
-            <TodoList 
+            <TodoList
                 filteredTodos={filteredTodos}
                 toggleTodo={toggleTodo}
                 deleteTodo={deleteTodo}
