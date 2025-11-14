@@ -454,7 +454,7 @@ cl {
 
         # Delete todo
         async def deleteTodo(id: any) -> None {
-            id spawn delete_todo();
+            #id spawn delete_todo();
             setTodos(
                 todos.filter(lambda  todo: any  -> bool{ return todo._jac_id != id; } )
             );

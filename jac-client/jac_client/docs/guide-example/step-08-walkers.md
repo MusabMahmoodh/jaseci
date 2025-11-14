@@ -198,7 +198,7 @@ async def toggleTodo(id: any) -> None {
 # Delete todo
 async def deleteTodo(id: any) -> None {
     # Call backend walker
-    id spawn delete_todo();
+    #id spawn delete_todo();
 
     # Update local state
     setTodos(todos.filter(lambda todo: any -> bool {
