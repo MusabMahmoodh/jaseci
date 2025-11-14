@@ -50,13 +50,6 @@ walker toggle_todo {
     }
 }
 
-walker delete_todo {
-    can delete with Todo entry {
-        here.destroy();
-        report {"success": True} ;
-    }
-}
-
 # Frontend Components
 cl {
     # Navigation
