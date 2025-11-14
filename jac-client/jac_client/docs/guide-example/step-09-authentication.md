@@ -1,5 +1,7 @@
 # Step 9: Adding Authentication
 
+> **💡 Quick Tip:** Each step has two parts. **Part 1** shows you what to build. **Part 2** explains why it works. Want to just build? Skip all Part 2 sections!
+
 In this step, you'll add user authentication so each person has their own private todos!
 
 ---
@@ -308,6 +310,10 @@ def TodosPage() -> any {
 - If logged in, show the todos
 
 **Try it!** You should see the "Please login" message (we'll add routing next to make this work properly).
+
+---
+
+**⏭️ Want to skip the theory?** Jump to [Step 10: Routing](./step-10-routing.md)
 
 ---
 

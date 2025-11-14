@@ -1,5 +1,7 @@
 # Step 4: Building the Complete Todo UI
 
+> **💡 Quick Tip:** Each step has two parts. **Part 1** shows you what to build. **Part 2** explains why it works. Want to just build? Skip all Part 2 sections!
+
 In this step, you'll put all your components together to create the full todo application interface!
 
 ---
@@ -200,6 +202,10 @@ cl {
 ```
 
 **Try it!** Change `hasTodos = true` to `hasTodos = false` and see the empty state message.
+
+---
+
+**⏭️ Want to skip the theory?** Jump to [Step 5: Local State](./step-05-local-state.md)
 
 ---
 

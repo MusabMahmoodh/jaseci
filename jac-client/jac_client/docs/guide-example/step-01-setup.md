@@ -1,5 +1,7 @@
 # Step 1: Project Setup
 
+> **💡 Quick Tip:** Each step has two parts. **Part 1** shows you what to build. **Part 2** explains why it works. Want to just build? Skip all Part 2 sections!
+
 In this first step, you'll create your Jac project and understand the basic file structure.
 
 ---
@@ -77,6 +79,10 @@ http://localhost:8000/page/app
 ```
 
 You should see "Hello, Jac!" and "My first full-stack app" 🎉
+
+---
+
+**⏭️ Want to skip the theory?** Jump to [Step 2: First Component](./step-02-components.md)
 
 ---
 

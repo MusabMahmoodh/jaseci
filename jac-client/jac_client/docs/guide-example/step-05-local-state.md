@@ -1,5 +1,7 @@
 # Step 5: Local State
 
+> **💡 Quick Tip:** Each step has two parts. **Part 1** shows you what to build. **Part 2** explains why it works. Want to just build? Skip all Part 2 sections!
+
 In this step, you'll learn about **state** - the data that makes your app interactive and dynamic!
 
 ---
@@ -262,6 +264,10 @@ cl {
 ```
 
 **Notice:** The filter buttons now highlight based on the current filter! But clicking them doesn't work yet (we'll add that in Step 6).
+
+---
+
+**⏭️ Want to skip the theory?** Jump to [Step 6: Event Handlers](./step-06-events.md)
 
 ---
 

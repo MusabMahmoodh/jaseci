@@ -1,5 +1,7 @@
 # Step 7: Component Lifecycle with `useEffect`
 
+> **💡 Quick Tip:** Each step has two parts. **Part 1** shows you what to build. **Part 2** explains why it works. Want to just build? Skip all Part 2 sections!
+
 In this step, you'll learn about **useEffect** - a way to run code when your component loads or when data changes!
 
 ---
@@ -149,6 +151,10 @@ cl {
 ```
 
 **Try it!** You'll see a brief loading message before your todos appear!
+
+---
+
+**⏭️ Want to skip the theory?** Jump to [Step 8: Walkers](./step-08-walkers.md)
 
 ---
 

@@ -1,5 +1,7 @@
 # Step 3: Styling Components
 
+> **💡 Quick Tip:** Each step has two parts. **Part 1** shows you what to build. **Part 2** explains why it works. Want to just build? Skip all Part 2 sections!
+
 In this step, you'll learn how to style your components using inline CSS to make them look great!
 
 ---
@@ -157,6 +159,10 @@ cl {
 ```
 
 **Try it!** The "All" button is now blue (active), while the others are gray.
+
+---
+
+**⏭️ Want to skip the theory?** Jump to [Step 4: Todo UI](./step-04-todo-ui.md)
 
 ---
 

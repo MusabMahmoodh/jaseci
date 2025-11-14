@@ -1,5 +1,7 @@
 # Step 11: Final Integration - Complete App
 
+> **💡 Quick Tip:** Each step has two parts. **Part 1** shows you what to build. **Part 2** explains why it works. Want to just build? Skip all Part 2 sections!
+
 Congratulations! 🎉 In this final step, you'll see the complete, production-ready todo application with all features integrated!
 
 ---
@@ -707,6 +709,10 @@ cl {
    - Filter (All/Active/Completed)
    - Delete todos
    - Logout and login again - your todos persist!
+
+---
+
+**🎉 You did it!** You've built a complete full-stack app. The rest of this page explains what you built and what to do next.
 
 ---
 

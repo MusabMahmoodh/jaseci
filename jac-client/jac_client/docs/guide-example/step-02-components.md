@@ -1,5 +1,7 @@
 # Step 2: First Component
 
+> **💡 Quick Tip:** Each step has two parts. **Part 1** shows you what to build. **Part 2** explains why it works. Want to just build? Skip all Part 2 sections!
+
 In this step, you'll create your first reusable component - a **TodoItem** that displays a single todo.
 
 ---
@@ -114,6 +116,10 @@ cl {
 ```
 
 **Try it!** Your app now has a clear structure with separate components.
+
+---
+
+**⏭️ Want to skip the theory?** Jump to [Step 3: Styling](./step-03-styling.md)
 
 ---
 

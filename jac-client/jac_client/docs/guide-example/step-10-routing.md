@@ -1,5 +1,7 @@
 # Step 10: Adding Routing
 
+> **💡 Quick Tip:** Each step has two parts. **Part 1** shows you what to build. **Part 2** explains why it works. Want to just build? Skip all Part 2 sections!
+
 In this step, you'll add multiple pages to your app so users can navigate between login, signup, and todos!
 
 ---
@@ -232,6 +234,10 @@ def app() -> any {
 3. Create an account - redirects to todos
 4. Click "Logout" - redirects to login
 5. Try manually going to `/page/app#/todos` while logged out - redirects to login!
+
+---
+
+**⏭️ Want to skip the theory?** Jump to [Step 11: Final Integration](./step-11-final.md)
 
 ---
 

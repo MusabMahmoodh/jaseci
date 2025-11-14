@@ -1,5 +1,7 @@
 # Step 8: Backend with Walkers
 
+> **💡 Quick Tip:** Each step has two parts. **Part 1** shows you what to build. **Part 2** explains why it works. Want to just build? Skip all Part 2 sections!
+
 In this step, you'll add a **real backend** to your app using walkers - so your todos are stored on a server!
 
 ---
@@ -230,6 +232,10 @@ When rendering todos, use `_jac_id` instead of custom id:
 2. Check/uncheck them
 3. Delete some
 4. **Refresh the page** - your todos persist!  🎉
+
+---
+
+**⏭️ Want to skip the theory?** Jump to [Step 9: Authentication](./step-09-authentication.md)
 
 ---
 

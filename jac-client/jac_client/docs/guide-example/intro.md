@@ -67,8 +67,12 @@ pip install jac-client
 
 Each step builds on the previous one, gradually creating the complete app. Every step has **two parts**:
 
-1. **🏗️ Building the App** - Hands-on coding, building the actual app
-2. **💡 Understanding the Concepts** - Optional deeper knowledge (can skip if you just want to build)
+1. **🏗️ Part 1: Building the App** - Hands-on coding, building the actual app
+2. **💡 Part 2: Understanding the Concepts** - Optional deeper knowledge
+
+**Want to just build?** Follow only Part 1 of each step and skip all Part 2 sections. You'll still have a working app!
+
+**Want to learn deeply?** Read both parts to understand *why* things work, not just *how*.
 
 ## Learning Path
 

@@ -1,5 +1,7 @@
 # Step 6: Event Handlers
 
+> **💡 Quick Tip:** Each step has two parts. **Part 1** shows you what to build. **Part 2** explains why it works. Want to just build? Skip all Part 2 sections!
+
 In this step, you'll learn how to handle user interactions like clicks, typing, and key presses to make your app fully interactive!
 
 ---
@@ -453,6 +455,10 @@ cl {
 ```
 
 **Try it!** Now you have a fully functional todo app!
+
+---
+
+**⏭️ Want to skip the theory?** Jump to [Step 7: Effects](./step-07-effects.md)
 
 ---
 
