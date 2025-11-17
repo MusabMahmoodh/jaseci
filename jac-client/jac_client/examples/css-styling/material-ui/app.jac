@@ -14,23 +14,23 @@ cl import from '@mui/icons-material/Refresh' { default as RefreshIcon }
 cl {
     def app() -> any {
         let [count, setCount] = useState(0);
-        
+
         useEffect(lambda -> None {
             console.log("Count changed: ", count);
         }, [count]);
-        
+
         let handleIncrement = lambda e: any -> None {
             setCount(count + 1);
         };
-        
+
         let handleDecrement = lambda e: any -> None {
             setCount(count - 1);
         };
-        
+
         let handleReset = lambda e: any -> None {
             setCount(0);
         };
-        
+
         return <Box sx={{"display": "flex", "justifyContent": "center", "alignItems": "center", "minHeight": "100vh", "backgroundColor": "#f5f5f5"}}>
             <Card sx={{"minWidth": 400, "boxShadow": 3}}>
                 <CardContent>
@@ -49,22 +49,22 @@ cl {
                 </CardContent>
                 <Divider />
                 <CardActions sx={{"display": "flex", "justifyContent": "space-around", "p": 2}}>
-                    <IconButton 
-                        color="error" 
+                    <IconButton
+                        color="error"
                         size="large"
                         onClick={handleDecrement}
                         sx={{"border": "2px solid", "borderColor": "error.main"}}>
                         <RemoveIcon />
                     </IconButton>
-                    <IconButton 
-                        color="primary" 
+                    <IconButton
+                        color="primary"
                         size="large"
                         onClick={handleReset}
                         sx={{"border": "2px solid", "borderColor": "primary.main"}}>
                         <RefreshIcon />
                     </IconButton>
-                    <IconButton 
-                        color="success" 
+                    <IconButton
+                        color="success"
                         size="large"
                         onClick={handleIncrement}
                         sx={{"border": "2px solid", "borderColor": "success.main"}}>
