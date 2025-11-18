@@ -859,14 +859,18 @@ class JacAPIServer:
                     try:
                         from pathlib import Path
 
-                        base_path = Path(Jac.base_path_dir) if Jac.base_path_dir else Path.cwd()
+                        base_path = (
+                            Path(Jac.base_path_dir) if Jac.base_path_dir else Path.cwd()
+                        )
                         css_file = base_path / "dist" / Path(path).name
-                        
+
                         if css_file.exists():
                             css_content = css_file.read_text(encoding="utf-8")
                             ResponseBuilder.send_css(self, css_content)
                         else:
-                            ResponseBuilder.send_json(self, 404, {"error": "CSS file not found"})
+                            ResponseBuilder.send_json(
+                                self, 404, {"error": "CSS file not found"}
+                            )
                     except Exception as exc:
                         ResponseBuilder.send_json(self, 500, {"error": str(exc)})
                     return

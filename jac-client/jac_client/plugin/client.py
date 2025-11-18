@@ -35,17 +35,19 @@ class JacClientModuleIntrospector(ModuleIntrospector):
         base_path = Path(Jac.base_path_dir)
         dist_dir = base_path / "dist"
         css_link = ""
-        
+
         # Try to find CSS file (main.css is the default Vite output)
         css_file = dist_dir / "main.css"
         if css_file.exists():
             css_hash = hashlib.sha256(css_file.read_bytes()).hexdigest()[:8]
-            css_link = f'<link rel="stylesheet" href="/static/main.css?hash={css_hash}"/>'
+            css_link = (
+                f'<link rel="stylesheet" href="/static/main.css?hash={css_hash}"/>'
+            )
 
         head_content = f'<meta charset="utf-8"/>\n            <title>{html.escape(function_name)}</title>'
         if css_link:
             head_content += f"\n            {css_link}"
-        
+
         page = (
             "<!DOCTYPE html>"
             '<html lang="en">'

@@ -161,9 +161,9 @@ class ViteClientBundleBuilder(ClientBundleBuilder):
             else:
                 # Bare specifiers or other assets handled by Vite
                 if self.vite_package_json is not None and path_obj.is_file():
-                    (
-                        self.vite_package_json.parent / "src" / path_obj.name
-                    ).write_text(path_obj.read_text(encoding="utf-8"), encoding="utf-8")
+                    (self.vite_package_json.parent / "src" / path_obj.name).write_text(
+                        path_obj.read_text(encoding="utf-8"), encoding="utf-8"
+                    )
                 continue
 
     def _compile_bundle(
@@ -345,19 +345,30 @@ root.render(<App />);
 
     def _copy_asset_files(self, src_dir: Path, build_dir: Path) -> None:
         """Copy CSS and other asset files from src/ to build/ directory.
-        
+
         Babel only transpiles JavaScript files, so CSS and other assets need to be
         manually copied to the build directory for Vite to resolve them.
         """
         if not src_dir.exists():
             return
-        
+
         # Ensure build directory exists
         build_dir.mkdir(parents=True, exist_ok=True)
-        
+
         # Asset file extensions to copy
-        asset_extensions = {".css", ".scss", ".sass", ".less", ".svg", ".png", ".jpg", ".jpeg", ".gif", ".webp"}
-        
+        asset_extensions = {
+            ".css",
+            ".scss",
+            ".sass",
+            ".less",
+            ".svg",
+            ".png",
+            ".jpg",
+            ".jpeg",
+            ".gif",
+            ".webp",
+        }
+
         for src_file in src_dir.iterdir():
             if src_file.is_file() and src_file.suffix in asset_extensions:
                 dest_file = build_dir / src_file.name
