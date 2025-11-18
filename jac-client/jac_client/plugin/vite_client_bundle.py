@@ -372,11 +372,8 @@ root.render(<App />);
         for src_file in src_dir.iterdir():
             if src_file.is_file() and src_file.suffix in asset_extensions:
                 dest_file = build_dir / src_file.name
-                try:
+                with contextlib.suppress(OSError, shutil.Error):
                     shutil.copy2(src_file, dest_file)
-                except (OSError, shutil.Error):
-                    # Silently skip if copy fails
-                    pass
 
     def _find_vite_bundle(self, output_dir: Path) -> Path | None:
         """Find the generated Vite bundle file."""
