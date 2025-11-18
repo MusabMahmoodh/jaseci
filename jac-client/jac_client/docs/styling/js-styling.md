@@ -167,12 +167,12 @@ export default {
     // Container styles
     container: { ... },
     card: { ... },
-    
+
     // Button styles
     button: { ... },
     buttonPrimary: { ... },
     buttonSecondary: { ... },
-    
+
     // Text styles
     title: { ... },
     subtitle: { ... }
@@ -237,12 +237,12 @@ export const getButtonStyle = (variant, disabled) => {
         cursor: disabled ? "not-allowed" : "pointer",
         opacity: disabled ? 0.5 : 1
     };
-    
+
     const variants = {
         primary: { backgroundColor: "#007bff", color: "#ffffff" },
         secondary: { backgroundColor: "#6c757d", color: "#ffffff" }
     };
-    
+
     return { ...base, ...variants[variant] };
 };
 ```

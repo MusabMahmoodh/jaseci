@@ -72,11 +72,11 @@ export const Button = styled.button`
     border: none;
     cursor: pointer;
     background-color: ${props => props.bgColor};
-    
+
     &:hover {
         transform: scale(1.05);
     }
-    
+
     &:active {
         transform: scale(0.95);
     }

@@ -16,35 +16,35 @@ cl import from .styled {
 cl {
     def app() -> any {
         let [count, setCount] = useState(0);
-        
+
         useEffect(lambda -> None {
             console.log("Count changed: ", count);
         }, [count]);
-        
+
         let handleIncrement = lambda e: any -> None {
             setCount(count + 1);
         };
-        
+
         let handleDecrement = lambda e: any -> None {
             setCount(count - 1);
         };
-        
+
         let handleReset = lambda e: any -> None {
             setCount(0);
         };
-        
+
         return <Container>
             <Card>
                 <Title>Counter Application</Title>
                 <Divider></Divider>
-                
+
                 <CounterSection>
                     <Label>Current Count</Label>
                     <CountDisplay count={count}>{count}</CountDisplay>
                 </CounterSection>
-                
+
                 <Divider></Divider>
-                
+
                 <ButtonGroup>
                     <Button bgColor="#ef4444" onClick={handleDecrement}>
                         -
@@ -56,7 +56,7 @@ cl {
                         +
                     </Button>
                 </ButtonGroup>
-                
+
                 <Hint>
                     Click the buttons to increment, decrement, or reset the counter
                 </Hint>

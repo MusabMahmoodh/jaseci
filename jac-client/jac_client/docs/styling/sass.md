@@ -41,7 +41,7 @@ $secondary-color: #6c757d;
     color: white;
     padding: 0.75rem 1.5rem;
     border-radius: 0.5rem;
-    
+
     &:hover {
         background-color: darken($primary-color, 10%);
     }
@@ -88,19 +88,19 @@ Nest selectors for better organization:
 .button {
     padding: 0.75rem 1.5rem;
     border-radius: 0.5rem;
-    
+
     &:hover {
         transform: scale(1.05);
     }
-    
+
     &:active {
         transform: scale(0.95);
     }
-    
+
     &Decrement {
         background-color: $red-500;
     }
-    
+
     &Reset {
         background-color: $gray-500;
     }
@@ -125,7 +125,7 @@ Create reusable style blocks:
     border-radius: 0.5rem;
     border: none;
     cursor: pointer;
-    
+
     &:hover {
         transform: scale(1.05);
     }
@@ -149,7 +149,7 @@ Use built-in and custom functions:
 ```scss
 .button {
     background-color: $red-500;
-    
+
     &:hover {
         background-color: darken($red-500, 10%);
     }
@@ -157,7 +157,7 @@ Use built-in and custom functions:
 
 .card {
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-    
+
     &:hover {
         box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
     }
@@ -222,7 +222,7 @@ Extract common patterns into mixins:
 
 .container {
     padding: 1rem;
-    
+
     @include respond-to(768px) {
         padding: 2rem;
     }
@@ -249,7 +249,7 @@ Don't nest too deeply (max 3-4 levels):
 // Good
 .card {
     padding: 1rem;
-    
+
     &__header {
         font-weight: bold;
     }
@@ -285,16 +285,16 @@ Use Sass functions for calculations:
 ```scss
 .card {
     padding: 1rem;
-    
+
     &__header {
         padding: 1rem;
         border-bottom: 1px solid #ddd;
     }
-    
+
     &__body {
         padding: 1.5rem;
     }
-    
+
     &--highlighted {
         border: 2px solid $primary;
     }
@@ -337,7 +337,7 @@ $colors: (
 
 .container {
     padding: 1rem;
-    
+
     @include respond-to(tablet) {
         padding: 2rem;
     }

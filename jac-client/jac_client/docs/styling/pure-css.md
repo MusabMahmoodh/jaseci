@@ -58,7 +58,7 @@ cl import ".styles.css";
 cl {
     def app() -> any {
         let [count, setCount] = useState(0);
-        
+
         return <div className="container">
             <div className="card">
                 <h1 className="title">Counter Application</h1>

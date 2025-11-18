@@ -59,11 +59,11 @@ export const Button = styled.button`
     padding: 0.75rem 1.5rem;
     border-radius: 0.5rem;
     background-color: ${props => props.bgColor};
-    
+
     &:hover {
         transform: scale(1.05);
     }
-    
+
     &:active {
         transform: scale(0.95);
     }
@@ -115,16 +115,16 @@ Use CSS pseudo-classes:
 ```javascript
 const Button = styled.button`
     background-color: #007bff;
-    
+
     &:hover {
         background-color: #0056b3;
         transform: scale(1.05);
     }
-    
+
     &:active {
         transform: scale(0.95);
     }
-    
+
     &:focus {
         outline: 2px solid #007bff;
         outline-offset: 2px;
@@ -139,11 +139,11 @@ Responsive design with media queries:
 ```javascript
 const Container = styled.div`
     padding: 1rem;
-    
+
     @media (min-width: 768px) {
         padding: 2rem;
     }
-    
+
     @media (min-width: 1024px) {
         padding: 3rem;
     }
@@ -217,7 +217,7 @@ const ButtonBase = styled.button`
 
 const PrimaryButton = styled(ButtonBase)`
     background-color: #007bff;
-    
+
     &:hover {
         background-color: #0056b3;
     }
@@ -225,7 +225,7 @@ const PrimaryButton = styled(ButtonBase)`
 
 const SecondaryButton = styled(ButtonBase)`
     background-color: #6c757d;
-    
+
     &:hover {
         background-color: #545b62;
     }
@@ -321,7 +321,7 @@ Use CSS animations:
 ```javascript
 const FadeIn = styled.div`
     animation: fadeIn 0.5s ease-in;
-    
+
     @keyframes fadeIn {
         from {
             opacity: 0;
