@@ -27,7 +27,7 @@ from jaclang.runtimelib.machine import ExecutionContext, JacMachine as Jac
 JsonValue: TypeAlias = (
     None | str | int | float | bool | list["JsonValue"] | dict[str, "JsonValue"]
 )
-StatusCode: TypeAlias = Literal[200, 201, 400, 401, 404, 503]
+StatusCode: TypeAlias = Literal[200, 201, 400, 401, 404, 500, 503]
 
 
 # Response Models

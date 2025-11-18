@@ -394,5 +394,5 @@ root.render(<App />);
         temp_dir = project_dir / "src"
 
         if temp_dir.exists():
-            with contextlib.suppress(OSError):
+            with contextlib.suppress(OSError, shutil.Error):
                 shutil.rmtree(temp_dir)
