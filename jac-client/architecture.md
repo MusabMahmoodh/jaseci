@@ -40,7 +40,7 @@ Extends the base `ClientBundleBuilder` to provide Vite integration. Key responsi
 
 ### Build Flow
 
-![Build Pipeline](jac_client/docs/assets/pipe_line-v2.png)
+![Build Pipeline](jac_client/docs/assets/pipe_line-v2.svg)
 
 
 ```
