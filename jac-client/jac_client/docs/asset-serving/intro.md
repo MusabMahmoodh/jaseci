@@ -1,368 +1,210 @@
 # Asset Serving in Jac
 
-This guide covers all approaches for serving static assets (images, fonts, videos, etc.) in Jac web applications. Each approach is demonstrated with complete, working examples.
+Static assets such as images, fonts, videos, and stylesheets are essential for web applications. Jac provides multiple approaches for serving these assets, each suited for different use cases.
 
-## Quick Navigation
+!!! tip "Important"
+    All local assets must be placed in the `assets/` folder at the root of your project. The server serves these files from the `/static/` path.
 
-### ✅ Available Examples
+## Overview
 
-| Asset Pattern | Documentation | Example Location |
-|---------------|--------------|------------------|
-| [**Static Path Serving**](./static-path.md) | Direct `/static/` path references | [`examples/asset-serving/image-asset/`](../../../examples/asset-serving/image-asset/) |
-| [**Import Alias**](./import-alias.md) | Using `@jac-client/assets` alias | [`examples/asset-serving/import-alias/`](../../../examples/asset-serving/import-alias/) |
-| [**Relative Imports**](./relative-imports.md) | Relative path imports | [`examples/asset-serving/relative-imports/`](../../../examples/asset-serving/relative-imports/) |
-| [**Vite-Bundled Assets**](./vite-bundled.md) | Assets processed by Vite | [`examples/asset-serving/vite-bundled-assets/`](../../../examples/asset-serving/vite-bundled-assets/) |
+Jac supports two primary approaches for asset serving:
 
-## Asset Serving Approaches Overview
+- **Remote Assets**: External URLs from CDNs or remote servers
+- **Local Assets**: Files stored in your project, served by the Jac server
 
-### Static Path Serving
-- **Direct Paths** — Reference assets via `/static/` URLs
-  - Simple and straightforward
-  - Works immediately without build configuration
-  - Perfect for quick prototypes and simple projects
+Local assets can be referenced using either **Static Path** (direct `/static/` URLs) or **Import Alias** (Vite-processed imports with optimization).
 
-### Import-Based Serving
-- **Import Alias** — Use `@jac-client/assets` alias for type-safe imports
-  - Vite handles asset optimization
-  - Automatic hash generation for cache busting
-  - Better for production applications
+## Remote Assets
 
-- **Relative Imports** — Import assets using relative paths
-  - Familiar import syntax
-  - Works with Vite's asset handling
-  - Good for component-scoped assets
+Use external URLs for assets hosted on CDNs or remote servers.
 
-### Vite-Bundled Assets
-- **Processed Assets** — Assets processed through Vite build pipeline
-  - Automatic optimization and compression
-  - Hash-based filenames for cache invalidation
-  - Best performance and caching strategy
+### Usage
 
-## Supported Asset Types
+```jac
+<img src="https://picsum.photos/400/300" alt="Image" />
+<img src="https://via.placeholder.com/400x300" alt="Placeholder" />
+```
 
-Jac supports serving a wide variety of static assets:
+### When to Use
 
-### Images
-- **Raster Images**: `.png`, `.jpg`, `.jpeg`, `.gif`, `.webp`, `.ico`
-- **Vector Images**: `.svg`
-- **Modern Formats**: `.avif`, `.heic` (browser-dependent)
+- CDN-hosted production assets
+- Placeholder images during development
+- External resources managed outside your project
+- Dynamic or user-generated content
 
-### Fonts
-- **Web Fonts**: `.woff`, `.woff2`, `.ttf`, `.otf`, `.eot`
-- **Font Files**: Automatically served with correct MIME types
+## Local Assets
 
-### Media Files
-- **Video**: `.mp4`, `.webm`, `.ogg`, `.mov`
-- **Audio**: `.mp3`, `.wav`, `.ogg`, `.m4a`
+> **Important**: All local assets must be placed in the `assets/` folder at the root of your project. .
 
-### Documents
-- **PDFs**: `.pdf`
-- **Other**: Any file type can be served as binary
+Local assets are stored in your project and served by the Jac server. Two methods are available:
 
-## Asset Serving Methods
+### Static Path
 
-### Method 1: Static Path (Direct URL)
+Reference assets directly using the `/static/` path prefix.
 
-Reference assets directly using the `/static/` path:
+#### Usage
 
 ```jac
 <img src="/static/assets/burger.png" alt="Burger" />
-```
-
-**How it works:**
-- Assets in `assets/` folder are served at `/static/assets/` path
-- Assets in `dist/` folder are also accessible via `/static/`
-- Server automatically detects file type and sets correct MIME type
-- Simple and works immediately
-
-**Best for:**
-- Quick prototypes
-- Simple applications
-- Assets that don't need optimization
-
-### Method 2: Import Alias
-
-Import assets using the `@jac-client/assets` alias:
-
-```jac
-cl import from "@jac-client/assets/burger.png" { default as burgerImage }
-<img src={burgerImage} />
-```
-
-**How it works:**
-- Alias configured in `vite.config.js` points to `src/assets/`
-- Assets from root `assets/` folder are copied to `src/assets/` during build
-- Vite processes the import and generates optimized asset URLs
-- Automatic hash generation for cache busting
-
-**Best for:**
-- Production applications
-- Assets that benefit from optimization
-- Type-safe asset references
-
-### Method 3: Relative Imports
-
-Import assets using relative paths:
-
-```jac
-cl import from "./assets/burger.png" { default as burgerImage }
-<img src={burgerImage} />
-```
-
-**How it works:**
-- Similar to import alias but uses relative paths
-- Vite resolves and processes the import
-- Works well for component-scoped assets
-
-**Best for:**
-- Component-specific assets
-- Assets organized by feature/component
-- Projects with modular structure
-
-### Method 4: Vite-Bundled Assets
-
-Assets processed through Vite's build pipeline:
-
-```jac
-cl import from "./images/hero.jpg" { default as heroImage }
-```
-
-**How it works:**
-- Vite processes assets during build
-- Generates optimized versions with hashed filenames
-- Assets are bundled and served from `dist/` directory
-- Automatic compression and optimization
-
-**Best for:**
-- Production builds
-- Large applications
-- Assets requiring optimization
-
-## Choosing the Right Approach
-
-### Decision Matrix
-
-| Method | Setup Complexity | Build Time | Runtime Performance | Cache Strategy | Best For |
-|--------|-----------------|------------|---------------------|----------------|----------|
-| Static Path | Low | None | Good | Manual | Prototypes |
-| Import Alias | Medium | Low | Excellent | Automatic | Production |
-| Relative Import | Medium | Low | Excellent | Automatic | Components |
-| Vite-Bundled | Medium | Medium | Excellent | Automatic | Large Apps |
-
-### Quick Decision Guide
-
-**Choose Static Path if:**
-- Building a quick prototype
-- Assets don't need optimization
-- Want immediate results without build step
-- Working with simple, small assets
-
-**Choose Import Alias if:**
-- Building a production application
-- Want automatic cache busting
-- Need asset optimization
-- Prefer type-safe imports
-
-**Choose Relative Imports if:**
-- Organizing assets by component/feature
-- Want component-scoped assets
-- Prefer relative path semantics
-- Building modular applications
-
-**Choose Vite-Bundled if:**
-- Building large applications
-- Need maximum performance
-- Want automatic asset optimization
-- Require hash-based cache invalidation
-
-## Asset Organization
-
-### Recommended Structure
-
-```
-project/
-├── assets/              # Root assets folder (served via /static/)
-│   ├── images/
-│   │   ├── logo.png
-│   │   └── hero.jpg
-│   ├── fonts/
-│   │   └── custom.woff2
-│   └── videos/
-│       └── intro.mp4
-├── src/
-│   └── assets/         # Assets for import alias (@jac-client/assets)
-│       └── components/
-│           └── button-icon.svg
-└── dist/               # Vite output (auto-generated)
-    └── assets/
-        └── [hashed-files]
-```
-
-### Best Practices
-
-1. **Organization**: Group assets by type (images, fonts, videos)
-2. **Naming**: Use descriptive, consistent file names
-3. **Optimization**: Optimize images before adding to project
-4. **Size**: Keep assets reasonably sized for web delivery
-5. **Format**: Use modern formats (WebP, WOFF2) when possible
-
-## Import Syntax
-
-### Static Path (No Import)
-
-```jac
-# Direct usage in JSX
-<img src="/static/assets/logo.png" alt="Logo" />
 <link rel="stylesheet" href="/static/styles.css" />
 ```
 
+#### How It Works
+
+- Assets in the `assets/` folder are served at `/static/assets/` path
+- Assets in `dist/` are also accessible via `/static/`
+- Server automatically detects file type and sets correct MIME type
+- No build configuration required
+
+#### When to Use
+
+- Quick prototypes and simple applications
+- Assets that don't require optimization
+- Immediate results without build step
+
 ### Import Alias
 
-```jac
-# Images
-cl import from "@jac-client/assets/logo.png" { default as logo }
-<img src={logo} />
+Import assets using the `@jac-client/assets` alias for Vite-processed assets.
 
-# Multiple assets
-cl import from "@jac-client/assets/hero.jpg" { default as heroImage }
-cl import from "@jac-client/assets/icon.svg" { default as icon }
+#### Usage
+
+```jac
+cl import from "@jac-client/assets/burger.png" { default as burgerImage }
+
+<img src={burgerImage} alt="Burger" />
 ```
 
-### Relative Imports
+#### How It Works
 
-```jac
-# Component-scoped assets
-cl import from "./assets/button-icon.svg" { default as buttonIcon }
-cl import from "../shared/images/logo.png" { default as sharedLogo }
-```
+- Alias configured in `vite.config.js` points to `src/assets/`
+- Assets from root `assets/` folder are copied to `src/assets/` during build
+- Vite processes imports and generates optimized asset URLs
+- Automatic hash generation for cache busting
 
-### CSS Background Images
+#### When to Use
 
-```jac
-# In CSS files
-.hero {
-  background-image: url('/static/assets/hero.jpg');
+- Production applications
+- Assets that benefit from optimization
+- Type-safe asset references
+- Automatic cache busting
+
+## Using Assets in CSS
+
+Assets can be referenced in CSS files using static paths.
+
+### Usage
+
+**CSS File (`styles.css`):**
+```css
+.container {
+    background-image: url('/static/assets/burger.png');
+    background-size: cover;
+    background-position: center;
 }
 
-# Or using imports in JSX
-let heroImage = "/static/assets/hero.jpg";
-<div style={{backgroundImage: `url(${heroImage})`}} />
+.burgerImage {
+    width: 200px;
+    height: auto;
+    border-radius: 10px;
+}
 ```
 
-## Server Configuration
+**Jac File:**
+```jac
+cl import "./styles.css";
 
-### Asset Serving Locations
+<div className="container">
+    <img src="/static/assets/burger.png" className="burgerImage" alt="Burger" />
+</div>
+```
 
-The server automatically checks multiple locations when serving `/static/*` requests:
+### Notes
 
-1. **`dist/` directory** — Vite-bundled assets (highest priority)
-2. **`assets/` directory** — User-provided static assets
+- CSS files reference assets using `/static/` paths
+- Assets are resolved at runtime by the server
+- Works with both background images and regular image elements
 
-### Supported File Types
+## Supported Asset Types
 
-The server automatically detects and serves:
-- **Images**: PNG, JPG, JPEG, GIF, WebP, SVG, ICO
-- **Fonts**: WOFF, WOFF2, TTF, OTF, EOT
-- **Media**: MP4, WebM, MP3, WAV
-- **Documents**: PDF
-- **CSS**: CSS, SCSS, SASS, LESS
-- **Other**: Any binary file type
+Jac automatically serves and detects MIME types for:
 
-### MIME Type Detection
+- **Images**: `.png`, `.jpg`, `.jpeg`, `.gif`, `.webp`, `.svg`, `.ico`, `.avif`
+- **Fonts**: `.woff`, `.woff2`, `.ttf`, `.otf`, `.eot`
+- **Media**: `.mp4`, `.webm`, `.ogg`, `.mov`, `.mp3`, `.wav`, `.m4a`
+- **Documents**: `.pdf`
+- **Stylesheets**: `.css`, `.scss`, `.sass`, `.less`
 
-The server automatically:
-- Detects file type from extension
-- Sets appropriate `Content-Type` header
-- Handles binary files correctly
-- Sets cache headers for optimal performance
+## Project Structure
 
-## Running Examples
+```
+project/
+├── assets/              # Static assets (served via /static/)
+│   ├── images/
+│   ├── fonts/
+│   └── videos/
+├── src/
+│   └── assets/         # Assets for import alias (@jac-client/assets)
+└── dist/               # Vite output (auto-generated)
+```
 
-Each example is a complete, runnable project:
+## Examples
+
+Complete working examples are available:
+
+- [`remote-urls/`](../../../examples/asset-serving/remote-urls/) - Remote asset URLs
+- [`image-asset/`](../../../examples/asset-serving/image-asset/) - Static path serving
+- [`import-alias/`](../../../examples/asset-serving/import-alias/) - Import alias pattern
+- [`css-example/`](../../../examples/asset-serving/css-example/) - Assets in CSS
+
+Run any example:
 
 ```bash
-# Navigate to example directory
-cd jac/examples/asset-serving/<example-name>
-
-# Install dependencies
+cd jac-client/jac_client/examples/asset-serving/<example-name>
 npm install
-
-# Run the application
 jac serve app.jac
-
-# Open in browser
-# http://localhost:8000/page/app
 ```
 
-Available examples:
-- `image-asset` - Static path serving
-- `import-alias` - Import alias pattern
-- `relative-imports` - Relative imports
-- `vite-bundled-assets` - Vite-bundled assets
+## Quick Reference
 
-## Performance Considerations
+### Remote URLs
+```jac
+<img src="https://example.com/image.jpg" alt="Image" />
+```
 
-### Asset Optimization
+### Static Path
+```jac
+<img src="/static/assets/logo.png" alt="Logo" />
+```
 
-1. **Image Compression**: Use tools like ImageOptim or Squoosh
-2. **Format Selection**: Prefer WebP for photos, SVG for icons
-3. **Lazy Loading**: Use `loading="lazy"` for below-fold images
-4. **Responsive Images**: Use `srcset` for different screen sizes
+### Import Alias
+```jac
+cl import from "@jac-client/assets/logo.png" { default as logo }
+<img src={logo} />
+```
 
-### Caching Strategy
-
-- **Static Path**: Manual cache control via query parameters
-- **Import Alias**: Automatic hash-based cache busting
-- **Vite-Bundled**: Automatic hash in filename for cache invalidation
-
-### Best Practices
-
-1. **Optimize Before Adding**: Compress images before committing
-2. **Use Appropriate Formats**: WebP for photos, SVG for icons
-3. **Lazy Load**: Load images only when needed
-4. **CDN Consideration**: Use CDN for production deployments
-5. **Bundle Size**: Monitor total asset bundle size
+### CSS Assets
+```css
+.hero {
+    background-image: url('/static/assets/hero.jpg');
+}
+```
 
 ## Troubleshooting
 
-### Common Issues
-
 **Asset not found (404)**
-- Check file exists in `assets/` or `dist/` directory
-- Verify path in code matches file location
-- Ensure file extension matches
+- Verify file exists in `assets/` or `dist/` directory
+- Check path matches file location exactly
 
 **Import not resolving**
-- Verify `vite.config.js` has `@jac-client/assets` alias
-- Check assets are copied to `src/assets/` during build
-- Ensure import path matches alias configuration
+- Ensure `vite.config.js` has `@jac-client/assets` alias configured
+- Verify assets are copied to `src/assets/` during build
 
-**Wrong MIME type**
-- Server auto-detects from file extension
-- Verify file extension is correct
-- Check file is not corrupted
+**CSS background image not showing**
+- Use `/static/` prefix in CSS `url()` paths
+- Verify asset file exists in `assets/` directory
 
-**Assets not updating**
-- Clear browser cache
-- Check if using hash-based filenames (should auto-update)
-- Verify build process completed successfully
+## Related Documentation
 
-## Resources
-
-- [Import System Documentation](../imports.md)
-- [Styling Documentation](../styling/intro.md)
-- [Routing Documentation](../routing.md)
-- [Complete Example Guide](../guide-example/intro.md)
-- [Architecture Overview](../../jac-client/architecture.md)
-
-## Contributing
-
-When adding new asset serving examples:
-
-1. Create a new directory in `examples/`
-2. Include a complete working example
-3. Add a README.md with setup instructions
-4. Create a documentation file in `docs/asset-serving/`
-5. Update this intro.md file
-6. Follow the existing example structure
-
+- [Import System](../imports.md)
+- [Styling](../styling/intro.md)
+- [Routing](../routing.md)
