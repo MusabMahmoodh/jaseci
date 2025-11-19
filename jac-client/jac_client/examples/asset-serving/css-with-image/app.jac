@@ -41,7 +41,7 @@ cl {
             </button>
 
             <h2 style={{marginTop: "40px", marginBottom: "20px"}}>CSS Asset Examples</h2>
-            
+
             <div className="container">
                 <h3 style={{color: "white", textShadow: "2px 2px 4px rgba(0,0,0,0.5)"}}>
                     Background Image Example
