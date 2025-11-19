@@ -889,18 +889,40 @@ class JacAPIServer:
                     return
 
                 # Static files (CSS, images, fonts, etc.) from dist or assets directories
-                if path.startswith("/static/"):
+                # Handle both /static/ paths and direct asset paths (from Vite bundles)
+                is_static_path = path.startswith("/static/")
+                is_asset_file = (
+                    not is_static_path
+                    and path != "/"
+                    and not path.startswith("/page/")
+                    and not path.startswith("/function/")
+                    and not path.startswith("/walker/")
+                    and not path.startswith("/user/")
+                    and not path.startswith("/functions")
+                    and not path.startswith("/walkers")
+                    and not path.startswith("/protected")
+                    and Path(path).suffix
+                    in {".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".ico", ".woff", ".woff2", ".ttf", ".otf", ".eot", ".mp4", ".webm", ".mp3", ".wav", ".css"}
+                )
+
+                if is_static_path or is_asset_file:
                     try:
                         base_path = (
                             Path(Jac.base_path_dir) if Jac.base_path_dir else Path.cwd()
                         )
-                        # Remove /static/ prefix to get the relative file path
-                        relative_path = path[8:]  # Remove "/static/"
+                        
+                        if is_static_path:
+                            # Remove /static/ prefix to get the relative file path
+                            relative_path = path[8:]  # Remove "/static/"
+                        else:
+                            # Direct asset path (e.g., /burger.png from Vite)
+                            relative_path = path[1:]  # Remove leading "/"
+                        
                         file_name = Path(relative_path).name
 
                         # Try dist directory first (for Vite-bundled assets)
                         dist_file = base_path / "dist" / relative_path
-                        # Also try just the filename in dist (for CSS files)
+                        # Also try just the filename in dist (for CSS files and direct assets)
                         dist_file_simple = base_path / "dist" / file_name
                         # Try assets directory (for user-provided static assets)
                         assets_file = base_path / "assets" / relative_path
