@@ -1,7 +1,6 @@
 # Pages
 cl import from react {useState, useEffect}
-# Import image using relative path
-cl import from "./assets/burger.png" { default as burgerImage }
+cl import ".styles.css";
 
 cl {
     def app() -> any {
@@ -10,12 +9,9 @@ cl {
             console.log("Count: ", count);
         }, [count]);
         return <div style={{padding: "20px", textAlign: "center", fontFamily: "Arial, sans-serif"}}>
-            <h1>🍔 Relative Imports Example</h1>
-            <p style={{color: "#666", marginBottom: "20px"}}>
-                Using relative path imports for assets
-            </p>
+            <h1>🍔 Burger Counter App</h1>
             <img
-                src={burgerImage}
+                src="/static/assets/burger.png"
                 alt="Delicious Burger"
                 style={{
                     width: "200px",
@@ -43,14 +39,28 @@ cl {
             >
                 Click the Burger! 🍔
             </button>
-            <div style={{marginTop: "30px", padding: "15px", backgroundColor: "#f5f5f5", borderRadius: "5px", fontSize: "12px", textAlign: "left", maxWidth: "600px", margin: "30px auto"}}>
-                <strong>How it works:</strong>
-                <ul style={{marginTop: "10px", paddingLeft: "20px"}}>
-                    <li>Import using relative path: <code>cl import from "./assets/burger.png"</code></li>
-                    <li>Works well for component-scoped assets</li>
-                    <li>Vite resolves the relative path during build</li>
-                    <li>Assets are processed and optimized by Vite</li>
-                </ul>
+
+            <h2 style={{marginTop: "40px", marginBottom: "20px"}}>CSS Asset Examples</h2>
+            
+            <div className="container">
+                <h3 style={{color: "white", textShadow: "2px 2px 4px rgba(0,0,0,0.5)"}}>
+                    Background Image Example
+                </h3>
+                <p style={{color: "white", textShadow: "2px 2px 4px rgba(0,0,0,0.5)"}}>
+                    This container uses the burger image as a background via CSS
+                </p>
+            </div>
+
+            <div className="card">
+                <h3>Image in Card</h3>
+                <img
+                    src="/static/assets/burger.png"
+                    alt="Burger in Card"
+                    className="burgerImage"
+                />
+                <p style={{marginTop: "15px", color: "#666"}}>
+                    This image is displayed within a styled card using CSS classes
+                </p>
             </div>
         </div>;
     }

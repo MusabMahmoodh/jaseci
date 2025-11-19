@@ -151,10 +151,9 @@ project/
 
 Complete working examples are available:
 
-- [`remote-urls/`](../../../examples/asset-serving/remote-urls/) - Remote asset URLs
-- [`image-asset/`](../../../examples/asset-serving/image-asset/) - Static path serving
-- [`import-alias/`](../../../examples/asset-serving/import-alias/) - Import alias pattern
-- [`css-example/`](../../../examples/asset-serving/css-example/) - Assets in CSS
+- [`image-asset/`](../../examples/asset-serving/image-asset/) - Static path serving
+- [`import-alias/`](../../examples/asset-serving/import-alias/) - Import alias pattern
+- [`css-with-image/`](../../examples/asset-serving/css-with-image/) - Assets in CSS
 
 Run any example:
 
