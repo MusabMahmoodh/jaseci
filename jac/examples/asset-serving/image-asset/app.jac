@@ -9,9 +9,9 @@ cl {
         }, [count]);
         return <div style={{padding: "20px", textAlign: "center", fontFamily: "Arial, sans-serif"}}>
             <h1>🍔 Burger Counter App</h1>
-            <img 
+            <img
                 src="/static/assets/burger.png"
-                alt="Delicious Burger" 
+                alt="Delicious Burger"
                 style={{
                     width: "200px",
                     height: "auto",
@@ -23,7 +23,7 @@ cl {
             <p style={{fontSize: "18px", margin: "20px 0"}}>
                 You've clicked the burger <strong>{count}</strong> times!
             </p>
-            <button 
+            <button
                 onClick={lambda e: any ->  None {setCount(count + 1);}}
                 style={{
                     padding: "10px 20px",

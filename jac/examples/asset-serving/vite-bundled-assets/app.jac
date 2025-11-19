@@ -14,9 +14,9 @@ cl {
             <p style={{color: "#666", marginBottom: "20px"}}>
                 Assets processed through Vite's build pipeline
             </p>
-            <img 
+            <img
                 src={burgerImage}
-                alt="Delicious Burger" 
+                alt="Delicious Burger"
                 style={{
                     width: "200px",
                     height: "auto",
@@ -28,7 +28,7 @@ cl {
             <p style={{fontSize: "18px", margin: "20px 0"}}>
                 You've clicked the burger <strong>{count}</strong> times!
             </p>
-            <button 
+            <button
                 onClick={lambda e: any ->  None {setCount(count + 1);}}
                 style={{
                     padding: "10px 20px",

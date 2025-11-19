@@ -388,9 +388,11 @@ root.render(<App />);
             ".wav",
         }
 
-        def copy_recursive(source: Path, destination: Path, base: Path | None = None) -> None:
+        def copy_recursive(
+            source: Path, destination: Path, base: Path | None = None
+        ) -> None:
             """Recursively copy asset files from source to destination.
-            
+
             Args:
                 source: Source directory to copy from
                 destination: Destination directory to copy to
@@ -398,7 +400,7 @@ root.render(<App />);
             """
             if not source.exists():
                 return
-            
+
             if base is None:
                 base = source
 

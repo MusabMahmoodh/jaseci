@@ -647,7 +647,9 @@ class ResponseBuilder:
 
     @staticmethod
     def send_static_file(
-        handler: BaseHTTPRequestHandler, file_path: Path, content_type: str | None = None
+        handler: BaseHTTPRequestHandler,
+        file_path: Path,
+        content_type: str | None = None,
     ) -> None:
         """Send static file response (images, fonts, etc.).
 
@@ -902,7 +904,25 @@ class JacAPIServer:
                     and not path.startswith("/walkers")
                     and not path.startswith("/protected")
                     and Path(path).suffix
-                    in {".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".ico", ".woff", ".woff2", ".ttf", ".otf", ".eot", ".mp4", ".webm", ".mp3", ".wav", ".css"}
+                    in {
+                        ".png",
+                        ".jpg",
+                        ".jpeg",
+                        ".gif",
+                        ".webp",
+                        ".svg",
+                        ".ico",
+                        ".woff",
+                        ".woff2",
+                        ".ttf",
+                        ".otf",
+                        ".eot",
+                        ".mp4",
+                        ".webm",
+                        ".mp3",
+                        ".wav",
+                        ".css",
+                    }
                 )
 
                 if is_static_path or is_asset_file:
@@ -910,14 +930,14 @@ class JacAPIServer:
                         base_path = (
                             Path(Jac.base_path_dir) if Jac.base_path_dir else Path.cwd()
                         )
-                        
+
                         if is_static_path:
                             # Remove /static/ prefix to get the relative file path
                             relative_path = path[8:]  # Remove "/static/"
                         else:
                             # Direct asset path (e.g., /burger.png from Vite)
                             relative_path = path[1:]  # Remove leading "/"
-                        
+
                         file_name = Path(relative_path).name
 
                         # Try dist directory first (for Vite-bundled assets)
@@ -936,7 +956,9 @@ class JacAPIServer:
                                 ResponseBuilder.send_css(self, css_content)
                                 return
                             elif dist_file_simple.exists():
-                                css_content = dist_file_simple.read_text(encoding="utf-8")
+                                css_content = dist_file_simple.read_text(
+                                    encoding="utf-8"
+                                )
                                 ResponseBuilder.send_css(self, css_content)
                                 return
                             elif assets_file.exists():
@@ -944,7 +966,9 @@ class JacAPIServer:
                                 ResponseBuilder.send_css(self, css_content)
                                 return
                             elif assets_file_simple.exists():
-                                css_content = assets_file_simple.read_text(encoding="utf-8")
+                                css_content = assets_file_simple.read_text(
+                                    encoding="utf-8"
+                                )
                                 ResponseBuilder.send_css(self, css_content)
                                 return
                             else:
@@ -954,7 +978,12 @@ class JacAPIServer:
                                 return
 
                         # Other static files (images, fonts, etc.) - serve as binary
-                        for candidate_file in [dist_file, dist_file_simple, assets_file, assets_file_simple]:
+                        for candidate_file in [
+                            dist_file,
+                            dist_file_simple,
+                            assets_file,
+                            assets_file_simple,
+                        ]:
                             if candidate_file.exists() and candidate_file.is_file():
                                 ResponseBuilder.send_static_file(self, candidate_file)
                                 return
