@@ -192,7 +192,12 @@ export default defineConfig({
             )
 
             # Import the image-asset example
-            examples_dir = Path(__file__).parent.parent / "examples" / "asset-serving" / "image-asset"
+            examples_dir = (
+                Path(__file__).parent.parent
+                / "examples"
+                / "asset-serving"
+                / "image-asset"
+            )
             (module,) = Jac.jac_import("app", str(examples_dir))
 
             # Build the bundle
@@ -236,7 +241,12 @@ export default defineConfig({
             )
 
             # Import the css-with-image example
-            examples_dir = Path(__file__).parent.parent / "examples" / "asset-serving" / "css-with-image"
+            examples_dir = (
+                Path(__file__).parent.parent
+                / "examples"
+                / "asset-serving"
+                / "css-with-image"
+            )
             (module,) = Jac.jac_import("app", str(examples_dir))
 
             # Build the bundle
@@ -256,9 +266,7 @@ export default defineConfig({
 
             # Verify CSS file was extracted
             css_files = list(output_dir.glob("*.css"))
-            self.assertGreater(
-                len(css_files), 0, "Expected at least one CSS file"
-            )
+            self.assertGreater(len(css_files), 0, "Expected at least one CSS file")
 
             # Verify bundle was written to output directory
             bundle_files = list(output_dir.glob("client.*.js"))
@@ -289,7 +297,12 @@ export default defineConfig({
             )
 
             # Import the import-alias example
-            examples_dir = Path(__file__).parent.parent / "examples" / "asset-serving" / "import-alias"
+            examples_dir = (
+                Path(__file__).parent.parent
+                / "examples"
+                / "asset-serving"
+                / "import-alias"
+            )
             (module,) = Jac.jac_import("app", str(examples_dir))
 
             # Copy assets from example directory to temp project's src/assets/
@@ -324,4 +337,3 @@ export default defineConfig({
 
             # Cleanup
             builder.cleanup_temp_dir()
-
