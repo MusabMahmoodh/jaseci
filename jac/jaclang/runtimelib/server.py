@@ -647,7 +647,7 @@ class ResponseBuilder(JacResponseBuilder):
         handler.send_header("Cache-Control", "no-cache")
         ResponseBuilder._add_cors_headers(handler)
         handler.end_headers()
-        handler.wfile.write(payload)       
+        handler.wfile.write(payload)
 
     @staticmethod
     def _add_cors_headers(handler: BaseHTTPRequestHandler) -> None:
