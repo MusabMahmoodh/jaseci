@@ -112,7 +112,6 @@ class JacClient:
         """Get a module introspector for the supplied module."""
         return JacClientModuleIntrospector(module_name, base_path)
 
-
     @staticmethod
     @hookimpl
     def send_static_file(
@@ -128,6 +127,7 @@ class JacClient:
             content_type: MIME type (auto-detected if None)
         """
         from jaclang.runtimelib.server import ResponseBuilder
+
         if not file_path.exists() or not file_path.is_file():
             ResponseBuilder.send_json(handler, 404, {"error": "File not found"})
             return
