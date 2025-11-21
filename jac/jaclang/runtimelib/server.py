@@ -23,7 +23,11 @@ from jaclang.runtimelib.constructs import (
     Root,
     WalkerArchetype,
 )
-from jaclang.runtimelib.machine import ExecutionContext, JacMachine as Jac
+from jaclang.runtimelib.machine import (
+    ExecutionContext,
+    JacMachine as Jac,
+    JacResponseBuilder,
+)
 
 # Type Aliases
 JsonValue: TypeAlias = (
@@ -594,7 +598,7 @@ class ModuleIntrospector:
 
 
 # HTTP Response Builder
-class ResponseBuilder:
+class ResponseBuilder(JacResponseBuilder):
     """Build and send HTTP responses."""
 
     @staticmethod
