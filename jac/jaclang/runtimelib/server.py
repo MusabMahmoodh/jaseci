@@ -6,7 +6,6 @@ import hashlib
 import html
 import inspect
 import json
-import mimetypes
 import os
 import secrets
 from contextlib import suppress

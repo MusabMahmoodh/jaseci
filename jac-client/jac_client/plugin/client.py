@@ -1,5 +1,6 @@
 import hashlib
 import html
+import mimetypes
 import types
 from http.server import BaseHTTPRequestHandler
 from pathlib import Path
