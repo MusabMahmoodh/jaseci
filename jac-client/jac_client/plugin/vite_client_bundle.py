@@ -53,8 +53,6 @@ class ViteClientBundleBuilder(ClientBundleBuilder):
         ES imports so Vite can resolve and bundle them.
         """
         imported_js_modules: list[Path | None] = []
-        print(f"Processing imports for {module_path}")
-        print(f"imports: {manifest.imports}")
         if manifest and manifest.imports:
             for _, import_path in manifest.imports.items():
                 import_path_obj = Path(import_path)
@@ -257,7 +255,7 @@ class ViteClientBundleBuilder(ClientBundleBuilder):
         module_js, mod = self._compile_to_js(module_path)
         module_manifest = mod.gen.client_manifest if mod else None
         collected_exports: set[str] = set(self._extract_client_exports(module_manifest))
-        print(f"module_manifest: {module_manifest}")
+
         client_globals_map = self._extract_client_globals(module_manifest, module)
         collected_globals: dict[str, Any] = dict(client_globals_map)
         # Recursively prepare dependencies and accumulate symbols
