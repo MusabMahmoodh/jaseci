@@ -44,7 +44,6 @@ class NestedFolderExampleTests(TestCase):
                 "react": "^19.2.0",
                 "react-dom": "^19.2.0",
                 "react-router-dom": "^7.3.0",
-                "antd": "^6.0.0",
             },
             "devDependencies": {
                 "vite": "^6.4.1",
@@ -358,3 +357,57 @@ export default defineConfig({
 
             # Cleanup
             builder.cleanup_temp_dir()
+
+    def test_nested_basic_example(self) -> None:
+        """Test nested-basic example with simpler nested structure."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+
+            package_json, output_dir = self._create_test_project_with_vite(temp_path)
+            runtime_path = (
+                Path(__file__).parent.parent / "plugin" / "client_runtime.jac"
+            )
+
+            # Initialize the Vite builder
+            builder = ViteClientBundleBuilder(
+                runtime_path=runtime_path,
+                vite_package_json=package_json,
+                vite_output_dir=output_dir,
+                vite_minify=False,
+            )
+
+            # Import the nested-basic example
+            examples_dir = (
+                Path(__file__).parent.parent
+                / "examples"
+                / "nested-folders"
+                / "nested-basic"
+            )
+            (module,) = Jac.jac_import("app", str(examples_dir))
+
+            # Build the bundle
+            bundle = builder.build(module, force=True)
+
+            # Verify bundle structure
+            self.assertIsNotNone(bundle)
+            self.assertEqual(bundle.module_name, "app")
+            self.assertIn("app", bundle.client_functions)
+
+            src_dir = temp_path / "src"
+
+            # Verify nested structure is preserved
+            components_dir = src_dir / "components"
+            self.assertTrue(
+                components_dir.exists(),
+                "Expected components directory to exist in src/",
+            )
+
+            button_js = components_dir / "button.js"
+            self.assertTrue(
+                button_js.exists(),
+                "Expected button.js to exist in src/components/",
+            )
+
+            # Cleanup
+            builder.cleanup_temp_dir()
+
