@@ -44,6 +44,7 @@ class NestedFolderExampleTests(TestCase):
                 "react": "^19.2.0",
                 "react-dom": "^19.2.0",
                 "react-router-dom": "^7.3.0",
+                "antd": "^6.0.0",
             },
             "devDependencies": {
                 "vite": "^6.4.1",
