@@ -111,11 +111,11 @@ class ViteClientBundleBuilder(ClientBundleBuilder):
         if module_path in visited:
             return
         visited.add(module_path)
-        
+
         # Set source_root on first call (root module's parent directory)
         if source_root is None:
             source_root = module_path.parent.resolve()
-        
+
         manifest = None
 
         # Compile current module to JS and append registration
@@ -145,11 +145,17 @@ class ViteClientBundleBuilder(ClientBundleBuilder):
             try:
                 relative_path = module_path.relative_to(source_root)
                 # Change extension from .jac to .js
-                output_path = self.vite_package_json.parent / "src" / relative_path.with_suffix(".js")
+                output_path = (
+                    self.vite_package_json.parent
+                    / "src"
+                    / relative_path.with_suffix(".js")
+                )
             except ValueError:
                 # If file is outside source_root, fall back to just filename
-                output_path = self.vite_package_json.parent / "src" / f"{module_path.stem}.js"
-            
+                output_path = (
+                    self.vite_package_json.parent / "src" / f"{module_path.stem}.js"
+                )
+
             # Ensure parent directories exist
             output_path.parent.mkdir(parents=True, exist_ok=True)
             output_path.write_text(combined_js, encoding="utf-8")
@@ -178,11 +184,15 @@ class ViteClientBundleBuilder(ClientBundleBuilder):
                         # Preserve folder structure for .js files too
                         try:
                             relative_path = path_obj.relative_to(source_root)
-                            output_path = self.vite_package_json.parent / "src" / relative_path
+                            output_path = (
+                                self.vite_package_json.parent / "src" / relative_path
+                            )
                         except ValueError:
                             # If file is outside source_root, fall back to just filename
-                            output_path = self.vite_package_json.parent / "src" / path_obj.name
-                        
+                            output_path = (
+                                self.vite_package_json.parent / "src" / path_obj.name
+                            )
+
                         # Ensure parent directories exist
                         output_path.parent.mkdir(parents=True, exist_ok=True)
                         output_path.write_text(js_code, encoding="utf-8")
@@ -194,11 +204,15 @@ class ViteClientBundleBuilder(ClientBundleBuilder):
                     # Preserve folder structure for other assets too
                     try:
                         relative_path = path_obj.relative_to(source_root)
-                        output_path = self.vite_package_json.parent / "src" / relative_path
+                        output_path = (
+                            self.vite_package_json.parent / "src" / relative_path
+                        )
                     except ValueError:
                         # If file is outside source_root, fall back to just filename
-                        output_path = self.vite_package_json.parent / "src" / path_obj.name
-                    
+                        output_path = (
+                            self.vite_package_json.parent / "src" / path_obj.name
+                        )
+
                     # Ensure parent directories exist
                     output_path.parent.mkdir(parents=True, exist_ok=True)
                     output_path.write_text(

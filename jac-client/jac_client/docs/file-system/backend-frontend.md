@@ -99,12 +99,12 @@ walker create_todo {
 cl {
     def app() -> any {
         let [todos, setTodos] = useState([]);
-        
+
         async def addTodo() -> None {
             response = root spawn create_todo(text="New task");
             # Update UI
         }
-        
+
         return <div>
             {/* Your UI here */}
         </div>;

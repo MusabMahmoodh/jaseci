@@ -169,7 +169,13 @@ export default defineConfig({
             self.assertIn("app", bundle.client_functions)
 
             # Verify all expected components are in client_functions
-            expected_exports = {"app", "ButtonRoot", "ButtonSecondL", "ButtonThirdL", "Card"}
+            expected_exports = {
+                "app",
+                "ButtonRoot",
+                "ButtonSecondL",
+                "ButtonThirdL",
+                "Card",
+            }
             for export_name in expected_exports:
                 self.assertIn(
                     export_name,
@@ -410,4 +416,3 @@ export default defineConfig({
 
             # Cleanup
             builder.cleanup_temp_dir()
-
