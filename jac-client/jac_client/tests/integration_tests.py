@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 import shutil
 import socket
@@ -10,7 +11,7 @@ import time
 from subprocess import Popen, run
 from typing import Optional
 from urllib.error import HTTPError, URLError
-from urllib.request import urlopen
+from urllib.request import Request, urlopen
 
 from unittest import TestCase
 
@@ -273,6 +274,36 @@ class ServeIntegrationTests(TestCase):
                     except (URLError, HTTPError) as exc:
                         print(f"[DEBUG] Error while requesting /walker/get_server_message: {exc}")
                         self.fail("Failed to GET /walker/get_server_message")
+
+                    # POST /walker/create_todo – create a Todo via walker HTTP API
+                    try:
+                        print("[DEBUG] Sending POST request to /walker/create_todo endpoint")
+                        payload = {
+                            "fields": {
+                                "text": "Sample todo from all-in-one app",
+                            }
+                        }
+                        req = Request(
+                            "http://127.0.0.1:8000/walker/create_todo",
+                            data=json.dumps(payload).encode("utf-8"),
+                            headers={"Content-Type": "application/json"},
+                            method="POST",
+                        )
+                        with urlopen(req, timeout=20) as resp_create:
+                            create_body = resp_create.read().decode(
+                                "utf-8", errors="ignore"
+                            )
+                            print(
+                                "[DEBUG] Received response from /walker/create_todo\n"
+                                f"Status: {resp_create.status}\n"
+                                f"Body (truncated to 500 chars):\n{create_body[:500]}"
+                            )
+                            self.assertEqual(resp_create.status, 200)
+                            # Basic sanity check: created Todo text should appear in the response payload.
+                            self.assertIn("Sample todo from all-in-one app", create_body)
+                    except (URLError, HTTPError) as exc:
+                        print(f"[DEBUG] Error while requesting /walker/create_todo: {exc}")
+                        self.fail("Failed to POST /walker/create_todo")
 
                 finally:
                     if server is not None:
