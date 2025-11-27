@@ -9,11 +9,9 @@ import socket
 import tempfile
 import time
 from subprocess import Popen, run
-from typing import Optional
+from unittest import TestCase
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
-
-from unittest import TestCase
 
 
 def _wait_for_port(
@@ -28,7 +26,7 @@ def _wait_for_port(
         TimeoutError: if the port is not accepting connections within timeout.
     """
     deadline = time.time() + timeout
-    last_err: Optional[Exception] = None
+    last_err: Exception | None = None
 
     while time.time() < deadline:
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
@@ -152,7 +150,7 @@ class ServeIntegrationTests(TestCase):
                 # 4. Start the server: `jac serve app.jac`
                 # NOTE: We don't use text mode here, so `Popen` defaults to bytes.
                 # Use `Popen[bytes]` in the type annotation to keep mypy happy.
-                server: Optional[Popen[bytes]] = None
+                server: Popen[bytes] | None = None
                 try:
                     print("[DEBUG] Starting server with 'jac serve app.jac'")
                     server = Popen(
