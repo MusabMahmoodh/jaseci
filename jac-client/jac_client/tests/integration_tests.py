@@ -142,7 +142,9 @@ class ServeIntegrationTests(TestCase):
                 self.assertTrue(os.path.isfile(app_jac_path), "all-in-one app.jac file missing")
 
                 # 4. Start the server: `jac serve app.jac`
-                server: Optional[Popen[str]] = None
+                # NOTE: We don't use text mode here, so `Popen` defaults to bytes.
+                # Use `Popen[bytes]` in the type annotation to keep mypy happy.
+                server: Optional[Popen[bytes]] = None
                 try:
                     print("[DEBUG] Starting server with 'jac serve app.jac'")
                     server = Popen(
