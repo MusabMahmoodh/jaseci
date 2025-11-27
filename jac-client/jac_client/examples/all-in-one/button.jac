@@ -7,5 +7,3 @@ cl def CustomButtonRoot() -> any {
         Root Button
     </Button>;
 }
-
-

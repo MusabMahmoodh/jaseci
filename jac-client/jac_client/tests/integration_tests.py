@@ -50,7 +50,9 @@ class ServeIntegrationTests(TestCase):
 
     def test_all_in_one_app_endpoints(self) -> None:
         """Create a Jac app, copy @all-in-one into it, run npm install, then verify endpoints."""
-        print("[DEBUG] Starting test_all_in_one_app_endpoints using jac create_jac_app + @all-in-one")
+        print(
+            "[DEBUG] Starting test_all_in_one_app_endpoints using jac create_jac_app + @all-in-one"
+        )
 
         # Resolve the path to jac_client/examples/all-in-one relative to this test file.
         tests_dir = os.path.dirname(__file__)
@@ -58,7 +60,9 @@ class ServeIntegrationTests(TestCase):
         all_in_one_path = os.path.join(jac_client_root, "examples", "all-in-one")
 
         print(f"[DEBUG] Resolved all-in-one source path: {all_in_one_path}")
-        self.assertTrue(os.path.isdir(all_in_one_path), "all-in-one example directory missing")
+        self.assertTrue(
+            os.path.isdir(all_in_one_path), "all-in-one example directory missing"
+        )
 
         app_name = "e2e-all-in-one-app"
 
@@ -136,10 +140,14 @@ class ServeIntegrationTests(TestCase):
                 )
 
                 if npm_result.returncode != 0:
-                    self.skipTest("Skipping: npm install failed or npm is not available in PATH.")
+                    self.skipTest(
+                        "Skipping: npm install failed or npm is not available in PATH."
+                    )
 
                 app_jac_path = os.path.join(project_path, "app.jac")
-                self.assertTrue(os.path.isfile(app_jac_path), "all-in-one app.jac file missing")
+                self.assertTrue(
+                    os.path.isfile(app_jac_path), "all-in-one app.jac file missing"
+                )
 
                 # 4. Start the server: `jac serve app.jac`
                 # NOTE: We don't use text mode here, so `Popen` defaults to bytes.
@@ -153,9 +161,13 @@ class ServeIntegrationTests(TestCase):
                     )
 
                     # Wait for localhost:8000 to become available
-                    print("[DEBUG] Waiting for server to be available on 127.0.0.1:8000")
+                    print(
+                        "[DEBUG] Waiting for server to be available on 127.0.0.1:8000"
+                    )
                     _wait_for_port("127.0.0.1", 8000, timeout=90.0)
-                    print("[DEBUG] Server is now accepting connections on 127.0.0.1:8000")
+                    print(
+                        "[DEBUG] Server is now accepting connections on 127.0.0.1:8000"
+                    )
 
                     # "/" – server up
                     try:
@@ -164,7 +176,9 @@ class ServeIntegrationTests(TestCase):
                             "http://127.0.0.1:8000",
                             timeout=10,
                         ) as resp_root:
-                            root_body = resp_root.read().decode("utf-8", errors="ignore")
+                            root_body = resp_root.read().decode(
+                                "utf-8", errors="ignore"
+                            )
                             print(
                                 "[DEBUG] Received response from root endpoint /\n"
                                 f"Status: {resp_root.status}\n"
@@ -184,7 +198,9 @@ class ServeIntegrationTests(TestCase):
                             "http://127.0.0.1:8000/page/app",
                             timeout=200,
                         ) as resp_page:
-                            page_body = resp_page.read().decode("utf-8", errors="ignore")
+                            page_body = resp_page.read().decode(
+                                "utf-8", errors="ignore"
+                            )
                             print(
                                 "[DEBUG] Received response from /page/app endpoint\n"
                                 f"Status: {resp_page.status}\n"
@@ -193,18 +209,24 @@ class ServeIntegrationTests(TestCase):
                             self.assertEqual(resp_page.status, 200)
                             self.assertIn("<html", page_body.lower())
                     except (URLError, HTTPError) as exc:
-                        print(f"[DEBUG] Error while requesting /page/app endpoint: {exc}")
+                        print(
+                            f"[DEBUG] Error while requesting /page/app endpoint: {exc}"
+                        )
                         self.fail("Failed to GET /page/app endpoint")
 
                     # "/page/app#/nested" – relative paths / nested route
                     # (hash fragment is client-side only but server should still serve the app shell)
                     try:
-                        print("[DEBUG] Sending GET request to /page/app#/nested endpoint")
+                        print(
+                            "[DEBUG] Sending GET request to /page/app#/nested endpoint"
+                        )
                         with urlopen(
                             "http://127.0.0.1:8000/page/app#/nested",
                             timeout=200,
                         ) as resp_nested:
-                            nested_body = resp_nested.read().decode("utf-8", errors="ignore")
+                            nested_body = resp_nested.read().decode(
+                                "utf-8", errors="ignore"
+                            )
                             print(
                                 "[DEBUG] Received response from /page/app#/nested endpoint\n"
                                 f"Status: {resp_nested.status}\n"
@@ -213,7 +235,9 @@ class ServeIntegrationTests(TestCase):
                             self.assertEqual(resp_nested.status, 200)
                             self.assertIn("<html", nested_body.lower())
                     except (URLError, HTTPError) as exc:
-                        print(f"[DEBUG] Error while requesting /page/app#/nested endpoint: {exc}")
+                        print(
+                            f"[DEBUG] Error while requesting /page/app#/nested endpoint: {exc}"
+                        )
                         self.fail("Failed to GET /page/app#/nested endpoint")
 
                     # "/static/main.css" – CSS compiled and serving
@@ -237,7 +261,9 @@ class ServeIntegrationTests(TestCase):
 
                     # "/static/assets/burger.png" – static files are loading
                     try:
-                        print("[DEBUG] Sending GET request to /static/assets/burger.png")
+                        print(
+                            "[DEBUG] Sending GET request to /static/assets/burger.png"
+                        )
                         with urlopen(
                             "http://127.0.0.1:8000/static/assets/burger.png",
                             timeout=20,
@@ -255,17 +281,23 @@ class ServeIntegrationTests(TestCase):
                                 msg="Expected PNG signature at start of burger.png",
                             )
                     except (URLError, HTTPError) as exc:
-                        print(f"[DEBUG] Error while requesting /static/assets/burger.png: {exc}")
+                        print(
+                            f"[DEBUG] Error while requesting /static/assets/burger.png: {exc}"
+                        )
                         self.fail("Failed to GET /static/assets/burger.png")
 
                     # "/walker/get_server_message" – walkers are integrated and up and running
                     try:
-                        print("[DEBUG] Sending GET request to /walker/get_server_message")
+                        print(
+                            "[DEBUG] Sending GET request to /walker/get_server_message"
+                        )
                         with urlopen(
                             "http://127.0.0.1:8000/walker/get_server_message",
                             timeout=20,
                         ) as resp_walker:
-                            walker_body = resp_walker.read().decode("utf-8", errors="ignore")
+                            walker_body = resp_walker.read().decode(
+                                "utf-8", errors="ignore"
+                            )
                             print(
                                 "[DEBUG] Received response from /walker/get_server_message\n"
                                 f"Status: {resp_walker.status}\n"
@@ -274,12 +306,16 @@ class ServeIntegrationTests(TestCase):
                             self.assertEqual(resp_walker.status, 200)
                             self.assertIn("get_server_message", walker_body)
                     except (URLError, HTTPError) as exc:
-                        print(f"[DEBUG] Error while requesting /walker/get_server_message: {exc}")
+                        print(
+                            f"[DEBUG] Error while requesting /walker/get_server_message: {exc}"
+                        )
                         self.fail("Failed to GET /walker/get_server_message")
 
                     # POST /walker/create_todo – create a Todo via walker HTTP API
                     try:
-                        print("[DEBUG] Sending POST request to /walker/create_todo endpoint")
+                        print(
+                            "[DEBUG] Sending POST request to /walker/create_todo endpoint"
+                        )
                         payload = {
                             "fields": {
                                 "text": "Sample todo from all-in-one app",
@@ -302,9 +338,13 @@ class ServeIntegrationTests(TestCase):
                             )
                             self.assertEqual(resp_create.status, 200)
                             # Basic sanity check: created Todo text should appear in the response payload.
-                            self.assertIn("Sample todo from all-in-one app", create_body)
+                            self.assertIn(
+                                "Sample todo from all-in-one app", create_body
+                            )
                     except (URLError, HTTPError) as exc:
-                        print(f"[DEBUG] Error while requesting /walker/create_todo: {exc}")
+                        print(
+                            f"[DEBUG] Error while requesting /walker/create_todo: {exc}"
+                        )
                         self.fail("Failed to POST /walker/create_todo")
 
                 finally:
@@ -315,10 +355,10 @@ class ServeIntegrationTests(TestCase):
                             server.wait(timeout=15)
                             print("[DEBUG] Server process terminated cleanly")
                         except Exception:
-                            print("[DEBUG] Server did not terminate cleanly, killing process")
+                            print(
+                                "[DEBUG] Server did not terminate cleanly, killing process"
+                            )
                             server.kill()
             finally:
                 print(f"[DEBUG] Restoring original working directory to {original_cwd}")
                 os.chdir(original_cwd)
-
-
