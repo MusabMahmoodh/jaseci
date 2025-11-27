@@ -26,6 +26,19 @@ cl import from .button {
 # Basic backend walkers
 #
 
+node Todo {
+    has text: str;
+    has done: bool = False;
+}
+
+walker create_todo {
+    has text: str;
+    can create with `root entry {
+        new_todo = here ++> Todo(text= self.text);
+        report new_todo;
+    }
+}
+
 walker ping_server {
     can ping with `root entry {
         report "pong from backend!";
@@ -39,11 +52,12 @@ walker get_server_message {
 }
 
 cl {
-    # Home page demonstrating CSS styling + direct asset usage
+    # Home page demonstrating CSS styling + direct asset usage + basic walkers
     def Home() -> any {
         let [count, setCount] = useState(0);
         let [pingResult, setPingResult] = useState("");
         let [serverMessage, setServerMessage] = useState("");
+        let [lastTodoMessage, setLastTodoMessage] = useState("");
 
         useEffect(lambda -> None {
             console.log("Home count changed: ", count);
@@ -61,6 +75,16 @@ cl {
             result = root spawn get_server_message();
             if result.reports and result.reports.length > 0 {
                 setServerMessage(result.reports[0][0]);
+            }
+        }
+
+        # Create a sample Todo node in the graph with a hardcoded payload
+        async def handleCreateSampleTodo() -> None {
+            result = root spawn create_todo(text="Sample todo from all-in-one app");
+            if result.reports and result.reports.length > 0 {
+                todo = result.reports[0][0];
+                setLastTodoMessage("Created Todo: " + todo.text);
+                console.log("Created Todo node:", todo);
             }
         }
 
@@ -176,6 +200,19 @@ cl {
                 >
                     Ping Backend
                 </button>
+                <button
+                    onClick={lambda e: any -> None { handleCreateSampleTodo(); }}
+                    style={{
+                        "padding": "0.5rem 1.2rem",
+                        "backgroundColor": "#10b981",
+                        "color": "white",
+                        "border": "none",
+                        "borderRadius": "6px",
+                        "cursor": "pointer"
+                    }}
+                >
+                    Create Sample Todo
+                </button>
                 {pingResult and (
                     <span style={{"marginLeft": "0.5rem", "color": "#374151"}}>
                         Result:
@@ -189,6 +226,11 @@ cl {
                         Message:
                         {" "}
                         <code>{serverMessage}</code>
+                    </p>
+                )}
+                {lastTodoMessage and (
+                    <p style={{"marginTop": "0.5rem", "color": "#111827"}}>
+                        {lastTodoMessage}
                     </p>
                 )}
             </div>
