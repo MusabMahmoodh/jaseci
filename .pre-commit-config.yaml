@@ -60,6 +60,7 @@ repos:
         types: [binary]
         exclude: |
           (?x)(
+              ^jac-client/jac_client/examples/|
               ^docs/docs/assets/byLLM\ Logo\.png$|
               ^docs/docs/assets/byLLM_name_logo\.png$|
               ^docs/docs/assets/debug_mode\.jpg$|
