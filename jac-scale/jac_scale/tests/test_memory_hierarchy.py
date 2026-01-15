@@ -14,7 +14,6 @@ from pymongo import MongoClient
 from testcontainers.mongodb import MongoDbContainer
 from testcontainers.redis import RedisContainer
 
-
 def get_free_port() -> int:
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         s.bind(("", 0))
