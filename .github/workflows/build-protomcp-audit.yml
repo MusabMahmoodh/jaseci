@@ -1,0 +1,369 @@
+name: Audit ProtoMcp Build Time
+
+# Audit how much jac-mcp adds to ProtoMcp's desktop build time.
+#
+# Single workflow run = 6 jobs (2 variants x 3 OSes) running in parallel,
+# plus a compare job that aggregates results.
+#
+# Variants:
+#   with-mcp:    pip install jac-mcp jasketch-mcp-server,  [desktop.plugins] jac_mcp = true
+#   without-mcp: skip those installs,                       [desktop.plugins] jac_mcp = false
+#
+# Both variants always have jac_scale + byllm bundled (matches ProtoMcp's
+# real config) so the delta isolates jac-mcp's cost.
+#
+# jaclang + jac-client are editable from this checkout. jac-scale, byllm,
+# jac-mcp, jasketch-mcp-server come from PyPI.
+
+on:
+  push:
+    paths:
+      - .github/workflows/build-protomcp-audit.yml
+      - ProtoMcp/**
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  EXAMPLE_DIR: ProtoMcp
+  PYTHON_VERSION: "3.12"
+
+jobs:
+  audit:
+    strategy:
+      fail-fast: false
+      matrix:
+        variant:
+          - with-mcp
+          - without-mcp
+        os:
+          - ubuntu-22.04
+          - windows-latest
+          - macos-latest
+        include:
+          - os: ubuntu-22.04
+            platform: linux
+          - os: windows-latest
+            platform: windows
+          - os: macos-latest
+            platform: macos
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Linux system deps
+        if: matrix.platform == 'linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev \
+            patchelf libfuse2 \
+            libgtk-3-dev libsoup-3.0-dev libjavascriptcoregtk-4.1-dev
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: cargo-reg-${{ matrix.os }}-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: cargo-reg-${{ matrix.os }}-
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      # ── pip install (timed) ───────────────────────────────────
+      # jaclang + jac-client editable from checkout. jac-scale + byllm
+      # always present (real ProtoMcp config). jac-mcp only on with-mcp.
+      - name: Install Jac packages
+        id: install
+        shell: bash
+        run: |
+          START=$SECONDS
+          pip install --upgrade pip
+          pip install -e ./jac
+          pip install -e ./jac-client
+          pip install jac-scale byllm
+          if [ "${{ matrix.variant }}" = "with-mcp" ]; then
+            pip install jac-mcp jasketch-mcp-server
+          fi
+          pip install pyinstaller Pillow
+          echo "secs=$((SECONDS-START))" >> "$GITHUB_OUTPUT"
+
+      - name: Install Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install Tauri CLI
+        shell: bash
+        run: |
+          if command -v cargo-tauri &>/dev/null; then
+            echo "cargo-tauri already installed, skipping"
+          elif command -v cargo-binstall &>/dev/null || \
+               (curl -L --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/cargo-bins/cargo-binstall/main/install-from-binstall-release.sh | bash); then
+            cargo binstall tauri-cli --no-confirm --no-discover-github-token || \
+              cargo install tauri-cli --locked
+          else
+            cargo install tauri-cli --locked
+          fi
+
+      - name: Setup desktop target
+        working-directory: ${{ env.EXAMPLE_DIR }}
+        shell: bash
+        run: |
+          rm -rf src-tauri
+          jac setup desktop
+
+      # Pin [desktop.plugins] to the audit's chosen config. Same approach
+      # as build-desktop-audit.yml: strip any existing block, append fresh.
+      - name: Configure desktop plugins for variant
+        working-directory: ${{ env.EXAMPLE_DIR }}
+        shell: bash
+        run: |
+          if [ "${{ matrix.variant }}" = "with-mcp" ]; then
+            export MCP=true
+          else
+            export MCP=false
+          fi
+          python -c "
+          import os, re
+          from pathlib import Path
+          p = Path('jac.toml')
+          text = p.read_text() if p.exists() else ''
+          text = re.sub(r'\[desktop\.plugins\][^\[]*', '', text).rstrip()
+          block = (
+              '\n\n[desktop.plugins]\n'
+              'jac_scale = true\n'
+              'byllm = true\n'
+              'jac_coder = false\n'
+              f'jac_mcp = {os.environ[\"MCP\"]}\n'
+              'jac_client = true\n'
+          )
+          p.write_text(text + block)
+          print(p.read_text())
+          "
+
+      - name: Disable AppImage on Linux
+        if: matrix.platform == 'linux'
+        working-directory: ${{ env.EXAMPLE_DIR }}
+        shell: bash
+        run: |
+          python3 -c "
+          import json
+          conf = 'src-tauri/tauri.conf.json'
+          with open(conf) as f: c = json.load(f)
+          c['bundle']['targets'] = ['deb', 'rpm']
+          with open(conf, 'w') as f: json.dump(c, f, indent=2)
+          "
+
+      # NSIS handles big bundles (byllm/litellm) better than WiX MSI.
+      - name: Force NSIS bundle on Windows
+        if: matrix.platform == 'windows'
+        working-directory: ${{ env.EXAMPLE_DIR }}
+        shell: bash
+        run: |
+          python -c "
+          import json
+          conf = 'src-tauri/tauri.conf.json'
+          with open(conf) as f: c = json.load(f)
+          c['bundle']['targets'] = ['nsis']
+          with open(conf, 'w') as f: json.dump(c, f, indent=2)
+          "
+
+      - name: Set Linux AppImage env vars
+        if: matrix.platform == 'linux'
+        run: |
+          echo "APPIMAGE_EXTRACT_AND_RUN=1" >> "$GITHUB_ENV"
+          echo "NO_STRIP=true" >> "$GITHUB_ENV"
+
+      # ── jac build (timed) ─────────────────────────────────────
+      - name: Build desktop app
+        id: build
+        working-directory: ${{ env.EXAMPLE_DIR }}
+        shell: bash
+        env:
+          JAC_BUILD: "1"
+        run: |
+          START=$SECONDS
+          jac build --client desktop --platform ${{ matrix.platform }}
+          echo "secs=$((SECONDS-START))" >> "$GITHUB_OUTPUT"
+        timeout-minutes: 90
+
+      - name: Measure installer size
+        id: size
+        if: always() && steps.build.outcome == 'success'
+        working-directory: ${{ env.EXAMPLE_DIR }}
+        shell: bash
+        run: |
+          python3 - >> "$GITHUB_OUTPUT" <<'PY'
+          from pathlib import Path
+          exts = {'.exe', '.msi', '.dmg', '.AppImage', '.deb', '.rpm'}
+          root = Path('src-tauri/target')
+          files = [p for p in root.rglob('*')
+                   if p.is_file() and p.suffix in exts] if root.exists() else []
+          if files:
+              biggest = max(files, key=lambda p: p.stat().st_size)
+              size = biggest.stat().st_size
+              print(f"bytes={size}")
+              print(f"mb={size/1048576:.1f}")
+              print(f"path={biggest.as_posix()}")
+          else:
+              print("bytes=0")
+              print("mb=0.0")
+              print("path=")
+          PY
+
+      - name: Write result JSON
+        if: always()
+        id: result
+        shell: bash
+        run: |
+          mkdir -p audit-out
+          cat > audit-out/result.json <<EOF
+          {
+            "variant": "${{ matrix.variant }}",
+            "os": "${{ matrix.os }}",
+            "platform": "${{ matrix.platform }}",
+            "commit": "${{ github.sha }}",
+            "run_id": "${{ github.run_id }}",
+            "pip_install_secs": ${{ steps.install.outputs.secs || 'null' }},
+            "build_secs": ${{ steps.build.outputs.secs || 'null' }},
+            "installer_bytes": ${{ steps.size.outputs.bytes || 'null' }},
+            "installer_path": "${{ steps.size.outputs.path }}",
+            "build_outcome": "${{ steps.build.outcome }}"
+          }
+          EOF
+          cat audit-out/result.json
+
+      - name: Upload result artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: protomcp-audit-${{ matrix.variant }}-${{ matrix.platform }}
+          path: audit-out/result.json
+          if-no-files-found: warn
+          retention-days: 90
+
+      - name: Per-job summary
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo "## ProtoMcp Build Audit — \`${{ matrix.variant }}\` on \`${{ matrix.platform }}\`"
+            echo ""
+            echo "| Phase            | Value |"
+            echo "|------------------|-------|"
+            echo "| pip install      | ${{ steps.install.outputs.secs }} s |"
+            echo "| jac build (total)| ${{ steps.build.outputs.secs }} s |"
+            echo "| Installer size   | ${{ steps.size.outputs.mb }} MB (${{ steps.size.outputs.bytes }} bytes) |"
+            echo "| Installer path   | \`${{ steps.size.outputs.path }}\` |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  compare:
+    needs: audit
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all audit results
+        uses: actions/download-artifact@v4
+        with:
+          path: audit-data
+          pattern: protomcp-audit-*
+
+      - name: Build comparison table
+        env:
+          GH_REPO: ${{ github.repository }}
+          RUN_ID: ${{ github.run_id }}
+        shell: bash
+        run: |
+          python3 <<'PY'
+          import json, os
+          from pathlib import Path
+
+          VARIANTS = ["without-mcp", "with-mcp"]   # baseline first
+          PLATFORMS = ["linux", "macos", "windows"]
+          REPO = os.environ["GH_REPO"]
+          RUN_ID = os.environ["RUN_ID"]
+
+          results = {}
+          root = Path("audit-data")
+          if root.exists():
+              for d in root.iterdir():
+                  rj = d / "result.json"
+                  if not rj.exists():
+                      continue
+                  try:
+                      data = json.loads(rj.read_text())
+                  except json.JSONDecodeError:
+                      continue
+                  results[(data.get("variant"), data.get("platform"))] = data
+
+          def fmt_int(v):
+              return f"{v}" if isinstance(v, (int, float)) else "—"
+
+          def fmt_mb(b):
+              return f"{b/1048576:.1f}" if isinstance(b, (int, float)) else "—"
+
+          def diff(a, b, suffix):
+              if a is None or b is None:
+                  return "—"
+              d = a - b
+              return f"{d:+d}{suffix}" if isinstance(d, int) else f"{d:+.1f}{suffix}"
+
+          out = ["## ProtoMcp Build Audit — Comparison", ""]
+          out.append(f"Run: [{RUN_ID}](https://github.com/{REPO}/actions/runs/{RUN_ID})")
+          out.append("")
+          out.append("Δ columns are `with-mcp` minus `without-mcp` on the same OS.")
+          out.append("")
+
+          for plat in PLATFORMS:
+              out.append(f"### {plat}")
+              out.append("")
+              out.append("| Variant | pip install | jac build | Installer | Δ build | Δ size |")
+              out.append("|---|---|---|---|---|---|")
+              base = results.get(("without-mcp", plat))
+              for variant in VARIANTS:
+                  r = results.get((variant, plat))
+                  if not r:
+                      out.append(f"| `{variant}` | — | — | — | — | — |")
+                      continue
+                  pip_s = fmt_int(r.get("pip_install_secs"))
+                  build_s = fmt_int(r.get("build_secs"))
+                  size_mb = fmt_mb(r.get("installer_bytes"))
+                  if variant == "without-mcp":
+                      d_build = "(base)"
+                      d_size = "(base)"
+                  else:
+                      d_build = diff(r.get("build_secs"), base.get("build_secs") if base else None, " s")
+                      bytes_diff = None
+                      if base and base.get("installer_bytes") is not None and r.get("installer_bytes") is not None:
+                          bytes_diff = (r["installer_bytes"] - base["installer_bytes"]) / 1048576
+                      d_size = f"{bytes_diff:+.1f} MB" if bytes_diff is not None else "—"
+                  out.append(f"| `{variant}` | {pip_s} s | {build_s} s | {size_mb} MB | {d_build} | {d_size} |")
+              out.append("")
+
+          missing = [(v, p) for v in VARIANTS for p in PLATFORMS if (v, p) not in results]
+          if missing:
+              out.append("### Missing data")
+              out.append("")
+              for v, p in missing:
+                  out.append(f"- `{v}` on `{p}`")
+              out.append("")
+
+          text = "\n".join(out)
+          print(text)
+          summary_path = os.environ.get("GITHUB_STEP_SUMMARY")
+          if summary_path:
+              with open(summary_path, "a") as f:
+                  f.write(text + "\n")
+          PY
