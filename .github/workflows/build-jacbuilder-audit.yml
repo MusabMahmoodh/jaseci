@@ -132,6 +132,16 @@ jobs:
           rm -rf src-tauri
           jac setup desktop
 
+      # `jac build` auto-installs [dependencies] but only inside the sidecar-
+      # bundling sub-step. The prior web-bundle step imports project .jac
+      # modules that transitively import websockets/httpx/watchdog/mcp, so
+      # they must be importable before `jac build` starts. `jac install`
+      # reads [dependencies] and pip-installs each.
+      - name: Install project Python dependencies (jac install)
+        working-directory: ${{ env.EXAMPLE_DIR }}
+        shell: bash
+        run: jac install
+
       # Pin [desktop.plugins] per variant. jac_mcp is off (JacBuilder doesn't
       # enable it in its real config). jac_coder toggles to isolate cost.
       - name: Configure desktop plugins for variant
