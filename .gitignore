@@ -25,6 +25,12 @@ eggs/
 .eggs/
 lib/
 lib64/
+# jacBuilder and jac-code have source `lib/` directories that must be tracked;
+# the generic `lib/` ignore above would drop them.
+!jacBuilder/lib/
+!jacBuilder/lib/**
+!jac-code/**/lib/
+!jac-code/**/lib/**
 parts/
 sdist/
 var/
