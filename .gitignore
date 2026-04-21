@@ -82,5 +82,7 @@ jactastic/**
 
 jacBuilder-dev/**
 
-# jac-code-main is tracked on this audit branch so the workflow can
-# `pip install -e ./jac-code-main`. (On main, this dir is typically excluded.)
+jac-code-main/**
+
+# jac-code is tracked on this audit branch so the workflow can
+# `pip install -e ./jac-code`. (On main, this dir is typically excluded.)

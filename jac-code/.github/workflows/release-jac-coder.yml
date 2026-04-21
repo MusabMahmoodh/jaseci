@@ -1,0 +1,63 @@
+name: Release jac-coder to PYPI
+
+on:
+  workflow_dispatch:
+
+jobs:
+  precompile:
+    strategy:
+      matrix:
+        python-version: ['3.12', '3.13', '3.14']
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install jaclang and jac-coder
+        run: |
+          pip install jaclang byllm mcp jac-mcp
+          pip install -e .
+
+      - name: Precompile bytecode
+        run: jac run scripts/precompile_bytecode.jac ./
+
+      - name: Upload precompiled artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: precompiled-jac-coder-${{ matrix.python-version }}
+          path: jac_coder/_precompiled/
+
+  release-jac-coder:
+    needs: precompile
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Download precompiled artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: jac_coder/_precompiled/
+          pattern: precompiled-jac-coder-*
+          merge-multiple: true
+
+      - name: Install build tools
+        run: |
+          pip install build twine
+
+      - name: Build and publish package
+        run: |
+          python -m build
+          twine upload dist/* -u __token__ -p ${{ secrets.PYPI_TOKEN }}

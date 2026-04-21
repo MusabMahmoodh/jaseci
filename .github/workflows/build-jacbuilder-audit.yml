@@ -1,31 +1,24 @@
 name: Audit JacBuilder Build Time
 
-# Audit how much jac-coder adds to JacBuilder's desktop build time.
+# Single-config audit: measure what a fully-plugged JacBuilder costs to
+# build across 3 OSes. No variant matrix -- jacBuilder's source
+# unconditionally imports jac_coder.runtime / byllm / jac-scale etc., so
+# "with vs without" variants can't both compile.
 #
-# Single workflow run = 6 jobs (2 variants x 3 OSes) running in parallel,
-# plus a compare job that aggregates results.
-#
-# Variants:
-#   with-coder:    pip install -e ./jac-code-main,  [desktop.plugins] jac_coder = true
-#   without-coder: skip jac-code-main install,      [desktop.plugins] jac_coder = false
-#
-# Both variants always have jac-scale + byllm bundled (matches JacBuilder's
-# real config) so the delta isolates jac-coder's cost.
-#
-# jaclang + jac-client are editable from this checkout. jac-scale + byllm
-# come from PyPI. jac-coder is installed editable from ./jac-code-main (the
-# copy committed on this branch; no pyproject on PyPI).
-#
-# Project's own [dependencies] (websockets, httpx, watchdog, mcp) are
-# auto-installed by `jac build` before PyInstaller bundling -- no need to
-# pip install them explicitly in the workflow.
+# Config (fixed for all 3 jobs):
+#   pip install   : jaclang (editable), jac-client (editable), jac-scale,
+#                   byllm, jac-mcp, jac-coder (editable from ./jac-code)
+#   jac install   : installs jacBuilder's own [dependencies]
+#                   (websockets, httpx, watchdog, mcp) before `jac build`
+#   [desktop.plugins]: jac_scale=true, byllm=true, jac_coder=true,
+#                      jac_mcp=false, jac_client=true
 
 on:
   push:
     paths:
       - .github/workflows/build-jacbuilder-audit.yml
       - jacBuilder/**
-      - jac-code-main/**
+      - jac-code/**
   workflow_dispatch:
 
 permissions:
@@ -40,13 +33,6 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        variant:
-          - with-coder
-          - without-coder
-        os:
-          - ubuntu-22.04
-          - windows-latest
-          - macos-latest
         include:
           - os: ubuntu-22.04
             platform: linux
@@ -88,10 +74,6 @@ jobs:
           python-version: ${{ env.PYTHON_VERSION }}
 
       # ── pip install (timed) ───────────────────────────────────
-      # jaclang + jac-client editable from checkout. jac-scale + byllm
-      # always from PyPI (real JacBuilder config). jac-code-main editable
-      # only on with-coder; pip will resolve its transitive deps (byllm
-      # is already installed, jaclang is already installed editable).
       - name: Install Jac packages
         id: install
         shell: bash
@@ -100,10 +82,8 @@ jobs:
           pip install --upgrade pip
           pip install -e ./jac
           pip install -e ./jac-client
-          pip install jac-scale byllm
-          if [ "${{ matrix.variant }}" = "with-coder" ]; then
-            pip install -e ./jac-code-main
-          fi
+          pip install jac-scale byllm jac-mcp
+          pip install -e ./jac-code
           pip install pyinstaller Pillow
           echo "secs=$((SECONDS-START))" >> "$GITHUB_OUTPUT"
 
@@ -132,29 +112,23 @@ jobs:
           rm -rf src-tauri
           jac setup desktop
 
-      # `jac build` auto-installs [dependencies] but only inside the sidecar-
-      # bundling sub-step. The prior web-bundle step imports project .jac
-      # modules that transitively import websockets/httpx/watchdog/mcp, so
-      # they must be importable before `jac build` starts. `jac install`
-      # reads [dependencies] and pip-installs each.
+      # `jac build` auto-installs [dependencies] inside the sidecar-bundling
+      # sub-step, but the prior web-bundle step imports project .jac modules
+      # that transitively import websockets/httpx/watchdog/mcp -- so they
+      # must be importable before `jac build` starts. `jac install` reads
+      # [dependencies] and pip-installs each.
       - name: Install project Python dependencies (jac install)
         working-directory: ${{ env.EXAMPLE_DIR }}
         shell: bash
         run: jac install
 
-      # Pin [desktop.plugins] per variant. jac_mcp is off (JacBuilder doesn't
-      # enable it in its real config). jac_coder toggles to isolate cost.
-      - name: Configure desktop plugins for variant
+      # Pin [desktop.plugins] to the audit's fixed config.
+      - name: Configure desktop plugins
         working-directory: ${{ env.EXAMPLE_DIR }}
         shell: bash
         run: |
-          if [ "${{ matrix.variant }}" = "with-coder" ]; then
-            export CODER=true
-          else
-            export CODER=false
-          fi
           python -c "
-          import os, re
+          import re
           from pathlib import Path
           p = Path('jac.toml')
           text = p.read_text() if p.exists() else ''
@@ -163,7 +137,7 @@ jobs:
               '\n\n[desktop.plugins]\n'
               'jac_scale = true\n'
               'byllm = true\n'
-              f'jac_coder = {os.environ[\"CODER\"]}\n'
+              'jac_coder = true\n'
               'jac_mcp = false\n'
               'jac_client = true\n'
           )
@@ -184,7 +158,7 @@ jobs:
           with open(conf, 'w') as f: json.dump(c, f, indent=2)
           "
 
-      # NSIS handles big bundles (byllm + optional jac-coder) better than WiX MSI.
+      # NSIS handles big bundles (byllm + jac-coder) better than WiX MSI.
       - name: Force NSIS bundle on Windows
         if: matrix.platform == 'windows'
         working-directory: ${{ env.EXAMPLE_DIR }}
@@ -205,8 +179,6 @@ jobs:
           echo "NO_STRIP=true" >> "$GITHUB_ENV"
 
       # ── jac build (timed) ─────────────────────────────────────
-      # Also auto-installs project [dependencies] (websockets, httpx,
-      # watchdog, mcp) before PyInstaller bundling.
       - name: Build desktop app
         id: build
         working-directory: ${{ env.EXAMPLE_DIR }}
@@ -251,7 +223,6 @@ jobs:
           mkdir -p audit-out
           cat > audit-out/result.json <<EOF
           {
-            "variant": "${{ matrix.variant }}",
             "os": "${{ matrix.os }}",
             "platform": "${{ matrix.platform }}",
             "commit": "${{ github.sha }}",
@@ -269,7 +240,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: jacbuilder-audit-${{ matrix.variant }}-${{ matrix.platform }}
+          name: jacbuilder-audit-${{ matrix.platform }}
           path: audit-out/result.json
           if-no-files-found: warn
           retention-days: 90
@@ -278,7 +249,7 @@ jobs:
         if: always() && steps.build.outcome == 'success'
         uses: actions/upload-artifact@v4
         with:
-          name: jacbuilder-installer-${{ matrix.variant }}-${{ matrix.platform }}
+          name: jacbuilder-installer-${{ matrix.platform }}
           path: |
             ${{ env.EXAMPLE_DIR }}/src-tauri/target/**/release/bundle/**/*.exe
             ${{ env.EXAMPLE_DIR }}/src-tauri/target/**/release/bundle/**/*.msi
@@ -294,7 +265,7 @@ jobs:
         shell: bash
         run: |
           {
-            echo "## JacBuilder Build Audit — \`${{ matrix.variant }}\` on \`${{ matrix.platform }}\`"
+            echo "## JacBuilder Build Audit — \`${{ matrix.platform }}\`"
             echo ""
             echo "| Phase            | Value |"
             echo "|------------------|-------|"
@@ -304,7 +275,7 @@ jobs:
             echo "| Installer path   | \`${{ steps.size.outputs.path }}\` |"
           } >> "$GITHUB_STEP_SUMMARY"
 
-  compare:
+  summary:
     needs: audit
     if: always()
     runs-on: ubuntu-latest
@@ -315,7 +286,7 @@ jobs:
           path: audit-data
           pattern: jacbuilder-audit-*
 
-      - name: Build comparison table
+      - name: Build summary table
         env:
           GH_REPO: ${{ github.repository }}
           RUN_ID: ${{ github.run_id }}
@@ -325,7 +296,6 @@ jobs:
           import json, os
           from pathlib import Path
 
-          VARIANTS = ["without-coder", "with-coder"]
           PLATFORMS = ["linux", "macos", "windows"]
           REPO = os.environ["GH_REPO"]
           RUN_ID = os.environ["RUN_ID"]
@@ -341,7 +311,7 @@ jobs:
                       data = json.loads(rj.read_text())
                   except json.JSONDecodeError:
                       continue
-                  results[(data.get("variant"), data.get("platform"))] = data
+                  results[data.get("platform")] = data
 
           def fmt_int(v):
               return f"{v}" if isinstance(v, (int, float)) else "—"
@@ -349,45 +319,31 @@ jobs:
           def fmt_mb(b):
               return f"{b/1048576:.1f}" if isinstance(b, (int, float)) else "—"
 
-          out = ["## JacBuilder Build Audit — Comparison", ""]
+          out = ["## JacBuilder Build Audit", ""]
           out.append(f"Run: [{RUN_ID}](https://github.com/{REPO}/actions/runs/{RUN_ID})")
           out.append("")
-          out.append("Δ columns are `with-coder` minus `without-coder` on the same OS.")
+          out.append("Config: jac-scale + byllm + jac-coder + jac-client (jac_mcp off).")
+          out.append("")
+          out.append("| Platform | pip install | jac build | Installer | Outcome |")
+          out.append("|---|---|---|---|---|")
+          for plat in PLATFORMS:
+              r = results.get(plat)
+              if not r:
+                  out.append(f"| `{plat}` | — | — | — | _no data_ |")
+                  continue
+              pip_s = fmt_int(r.get("pip_install_secs"))
+              build_s = fmt_int(r.get("build_secs"))
+              size_mb = fmt_mb(r.get("installer_bytes"))
+              outcome = r.get("build_outcome", "?")
+              out.append(f"| `{plat}` | {pip_s} s | {build_s} s | {size_mb} MB | {outcome} |")
           out.append("")
 
-          for plat in PLATFORMS:
-              out.append(f"### {plat}")
-              out.append("")
-              out.append("| Variant | pip install | jac build | Installer | Δ build | Δ size |")
-              out.append("|---|---|---|---|---|---|")
-              base = results.get(("without-coder", plat))
-              for variant in VARIANTS:
-                  r = results.get((variant, plat))
-                  if not r:
-                      out.append(f"| `{variant}` | — | — | — | — | — |")
-                      continue
-                  pip_s = fmt_int(r.get("pip_install_secs"))
-                  build_s = fmt_int(r.get("build_secs"))
-                  size_mb = fmt_mb(r.get("installer_bytes"))
-                  if variant == "without-coder":
-                      d_build = "(base)"
-                      d_size = "(base)"
-                  else:
-                      d_build = "—"
-                      d_size = "—"
-                      if base and base.get("build_secs") is not None and r.get("build_secs") is not None:
-                          d_build = f"{r['build_secs'] - base['build_secs']:+d} s"
-                      if base and base.get("installer_bytes") is not None and r.get("installer_bytes") is not None:
-                          d_size = f"{(r['installer_bytes'] - base['installer_bytes'])/1048576:+.1f} MB"
-                  out.append(f"| `{variant}` | {pip_s} s | {build_s} s | {size_mb} MB | {d_build} | {d_size} |")
-              out.append("")
-
-          missing = [(v, p) for v in VARIANTS for p in PLATFORMS if (v, p) not in results]
+          missing = [p for p in PLATFORMS if p not in results]
           if missing:
               out.append("### Missing data")
               out.append("")
-              for v, p in missing:
-                  out.append(f"- `{v}` on `{p}`")
+              for p in missing:
+                  out.append(f"- `{p}`")
               out.append("")
 
           text = "\n".join(out)
