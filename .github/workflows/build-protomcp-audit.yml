@@ -254,6 +254,25 @@ jobs:
           if-no-files-found: warn
           retention-days: 90
 
+      # Upload the actual installer(s) so they can be downloaded and tested.
+      # `jac build --platform <x>` passes --target <triple> to Cargo, so
+      # bundles land under target/<triple>/release/bundle/ rather than
+      # target/release/bundle/. The glob covers both layouts.
+      - name: Upload installer artifacts
+        if: always() && steps.build.outcome == 'success'
+        uses: actions/upload-artifact@v4
+        with:
+          name: protomcp-installer-${{ matrix.variant }}-${{ matrix.platform }}
+          path: |
+            ${{ env.EXAMPLE_DIR }}/src-tauri/target/**/release/bundle/**/*.exe
+            ${{ env.EXAMPLE_DIR }}/src-tauri/target/**/release/bundle/**/*.msi
+            ${{ env.EXAMPLE_DIR }}/src-tauri/target/**/release/bundle/**/*.dmg
+            ${{ env.EXAMPLE_DIR }}/src-tauri/target/**/release/bundle/**/*.AppImage
+            ${{ env.EXAMPLE_DIR }}/src-tauri/target/**/release/bundle/**/*.deb
+            ${{ env.EXAMPLE_DIR }}/src-tauri/target/**/release/bundle/**/*.rpm
+          if-no-files-found: warn
+          retention-days: 14
+
       - name: Per-job summary
         if: always()
         shell: bash
