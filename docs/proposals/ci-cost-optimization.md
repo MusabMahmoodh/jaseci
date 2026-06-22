@@ -335,14 +335,52 @@ spent ~6 min, instead of triggering the full ~80-100 min fan-out including the
 on core-broken PRs - an estimated ~20,000+ min/month saved on top of the
 free-runner move and format scoping.
 
-## F. Final architecture
+## F. The .jir cache is NOT dependency-aware (rules out cached incremental check)
 
-1. Heavy suite runs on contributors' free fork runners (push to dev branch).
-2. Upstream PR runs the tiered fail-fast pipeline; only the 2 k8s jobs use
-   Blacksmith.
-3. jac-check: diff-scoped format always; diff-scoped type check on PRs,
-   whole-repo on main.
-4. test-pypi-build + jacpack smokes: nightly, off the PR path.
+Investigated whether `jac check` could be made cheap by caching across runs.
+The per-project `.jac/cache/*.jir` cache key
+([`compute_module_key`](../../jac/jaclang/jac0core/jir.jac#L303)) hashes the
+jaclang version, Python version, format version, the file's own content, and
+[`_related_files`](../../jac/jaclang/jac0core/jir.jac) - which resolves to only
+the module's `.impl.jac` / `.test.jac` / variant / style **sibling** files,
+**not its imported dependencies**.
 
-Net: Blacksmith spend down ~80-90%, PR latency equal or better, and broken PRs
-fail in minutes instead of paying for the full fan-out.
+Consequence: if module A changes and module B imports A but B's own source is
+unchanged, B's cache key is unchanged -> B loads stale cached JIR -> B is **not**
+re-checked against the new A. A cached incremental whole-repo check would
+therefore miss cross-file type breaks - the same blind spot as diff-scoping.
+Making the cache transitively aware is a jaclang-core change (out of scope per
+project policy), so the fix is at the CI level, not the compiler.
+
+## G. Final architecture: PR-light + merge-full (two-speed)
+
+Run the cheap signal on every push, the authoritative full suite rarely (at
+merge), via a GitHub merge queue (`merge_group`):
+
+| Event | Frequency | What runs | Runner |
+|-------|-----------|-----------|--------|
+| PR / push | every push (often) | policy gate, diff-scoped format, **diff-scoped** jac check | free |
+| `merge_group` | once per merge (rare) | **whole-repo (cold) jac check** + full test suite, all in parallel | free + Blacksmith (k8s only) |
+| nightly | daily | test-pypi-build + jacpack smokes | free or Blacksmith |
+
+Why this is the right shape:
+
+- **Safe:** the cold whole-repo `jac check .` at merge catches cross-file breaks
+  the diff-scoped PR check cannot (and the cache cannot, per F).
+- **No red main:** the full check gates *pre-merge* (merge queue), not after.
+- **Cheap:** the expensive full check + full test suite run **once per merge**
+  instead of on **every push**. jac-check alone is 64,964 min/30d today, most of
+  it redundant per-push reruns - this is the single largest structural cut.
+- **At merge, run all jobs in parallel** (no fail-fast tiering): merges are rare
+  and you want fastest time-to-land.
+
+Tradeoff to accept: a PR author sees only lint/type(diff)/format on pushes; full
+test results appear when the PR enters the merge queue. If queue bounce-back is a
+concern, optionally add the two highest-value fast jobs (runtime, client) to the
+PR path - they catch ~13% / ~8% of failures in ~5 min.
+
+Setup required: enable a merge queue on `main` (repo ruleset / branch
+protection) with the `merge_group` checks as the required gate.
+
+Net: Blacksmith spend down ~80-90% (only k8s, only at merge), PR feedback in
+~5 min, and the authoritative suite runs a few times a day instead of hundreds.

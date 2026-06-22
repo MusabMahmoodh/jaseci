@@ -1,40 +1,44 @@
-name: CI Tiered Pipeline (free, fail-fast)
+name: CI (PR-light + merge-full)
 
-# Demonstrates the time-optimal fail-fast pipeline on FREE ubuntu-latest:
-#   Tier 0 (instant): policy checks + DIFF-SCOPED jac format (changed files only)
-#   Tier 1 (~6 min) : highest failures-caught-per-minute gate (runtime, client, types)
-#   Tier 2 (~10 min): broad suite, runs only if Tier 1 is green (compiler sharded, scale, light)
-#   Tier 3          : heavy/slow - on the real repo these are Blacksmith (k8s) or nightly (pypi)
-# Sequential BETWEEN tiers (via needs:), parallel WITHIN a tier.
+# Two-speed pipeline:
+#   PR / push  -> cheap fast feedback only: policy gate, diff-scoped format,
+#                 diff-scoped jac check. Runs on every push (the frequent case).
+#   merge_group-> the authoritative FULL suite, all jobs in parallel: whole-repo
+#                 (cold) jac check + every test job. Runs once per merge (rare).
+#
+# Why: the .jir cache is NOT dependency-aware (key = own source + impl/test/
+# variant/style siblings, not imports), so a cached incremental whole-repo check
+# would miss cross-file breaks. The safe + cheap answer is to run the cold
+# whole-repo check rarely (pre-merge) instead of on every push.
+#
+# Requires a merge queue (repo ruleset / branch protection) so merge_group fires.
 # Measurement branch; not for merge to main.
 
 on:
   push:
     branches:
       - 'ci-benchmark/**'
+  pull_request:
+    branches: [main]
+  merge_group:
   workflow_dispatch:
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' || github.event_name == 'push' }}
 
 jobs:
-  # ===================== TIER 0: instant gate =====================
-  tier0-gate:
+  # ==================================================================
+  # PR / PUSH PATH - cheap, runs on every push
+  # ==================================================================
+  pr-gate:
+    if: github.event_name != 'merge_group'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
-        with:
-          fetch-depth: 0
-          submodules: true
+        with: { fetch-depth: 0, submodules: true }
       - uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-          cache: pip
-      # Resolve the diff base against the REAL upstream main. On a fork, origin/main
-      # is often stale (here it was 491 .jac files behind), which would balloon the
-      # "changed files" set. On a real upstream PR, origin/main is already correct;
-      # this upstream fetch just makes fork measurement faithful.
+        with: { python-version: '3.12', cache: pip }
       - name: Resolve base ref (upstream/main)
         id: base
         run: |
@@ -44,24 +48,17 @@ jobs:
                  || git merge-base origin/main HEAD 2>/dev/null || echo "")
           echo "base=$BASE" >> "$GITHUB_OUTPUT"
           echo "Resolved base: ${BASE:-<none>}"
-      # Cheap policy checks - no install needed. These mirror the bespoke steps in
-      # contribution-checks.yml and the pre-commit hooks; running them first gates
-      # the heavy suite so a policy slip fails in seconds, not after the fan-out.
       - name: Policy checks
-        env:
-          BASE: ${{ steps.base.outputs.base }}
+        env: { BASE: "${{ steps.base.outputs.base }}" }
         run: |
           [ -z "$BASE" ] && { echo "no base; skipping policy checks"; exit 0; }
-          # Block AI co-author trailers
           if git log "$BASE"..HEAD --format='%b' \
             | grep -iP 'co-authored-by:.*\b(claude|anthropic|openai|copilot|composer|cursor|gpt|gemini|ai|bot)\b'; then
             echo "::error::AI co-author trailer found in commits"; exit 1
           fi
-          # Block new .py files
           if git diff --name-only --diff-filter=A "$BASE"...HEAD | grep -P '\.py$'; then
             echo "::error::New .py files are not allowed"; exit 1
           fi
-          # Ban em-dashes in changed markdown
           MD=$(git diff --name-only "$BASE"...HEAD -- '*.md' || true)
           if [ -n "$MD" ] && echo "$MD" | xargs -r grep -lP '\xe2\x80\x94' 2>/dev/null; then
             echo "::error::Em-dash (U+2014) found in changed markdown"; exit 1
@@ -69,31 +66,89 @@ jobs:
       - name: Release-note fragment check
         env:
           CI: "true"
-          PRE_COMMIT_FROM_REF: ${{ steps.base.outputs.base }}
+          PRE_COMMIT_FROM_REF: "${{ steps.base.outputs.base }}"
           PRE_COMMIT_TO_REF: HEAD
         run: bash scripts/check-release-notes.sh
       - name: Install jac toolchain
         run: |
           python -m pip install --upgrade pip
           pip install -e jac
-      - name: Diff-scoped jac format (changed .jac files only)
-        env:
-          BASE: ${{ steps.base.outputs.base }}
+      - name: Diff-scoped jac format (changed .jac only)
+        env: { BASE: "${{ steps.base.outputs.base }}" }
         run: |
-          if [ -z "$BASE" ]; then echo "no base ref; skipping"; exit 0; fi
+          [ -z "$BASE" ] && { echo "no base; skip"; exit 0; }
           CHANGED=$(git diff --name-only "$BASE"...HEAD -- '*.jac' \
             | grep -v '/fixtures/' | grep -v '^scripts/' | grep -v '_err\.jac$' || true)
-          if [ -z "$CHANGED" ]; then
-            echo "No changed .jac files - format check skipped (vs whole-repo scan of every file)."
-            exit 0
-          fi
-          echo "Checking changed files:"; echo "$CHANGED"
+          [ -z "$CHANGED" ] && { echo "No changed .jac files - format skipped."; exit 0; }
           echo "$CHANGED" | xargs jac format --check --lintfix
 
-  # ===================== TIER 1: fast correctness gate =====================
-  # Ordered first by failures-caught-per-minute: runtime (2.50), client (2.19), types.
-  t1-runtime:
-    needs: [tier0-gate]
+  pr-typecheck:
+    if: github.event_name != 'merge_group'
+    needs: [pr-gate]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with: { fetch-depth: 0, submodules: true }
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.12', cache: pip }
+      - name: Install toolchain
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ./jac
+          jac install -e ./jac-scale --extras all
+          jac install -e ./jac-byllm
+      - name: Diff-scoped jac check (changed .jac only)
+        run: |
+          git remote add upstream https://github.com/jaseci-labs/jaseci.git 2>/dev/null || true
+          git fetch upstream main --depth=1 2>/dev/null || true
+          BASE=$(git merge-base upstream/main HEAD 2>/dev/null \
+                 || git merge-base origin/main HEAD 2>/dev/null || echo "")
+          [ -z "$BASE" ] && { jac check . --nowarn; exit $?; }
+          CHANGED=$(git diff --name-only "$BASE"...HEAD -- '*.jac' \
+            | grep -v '/fixtures/' | grep -v '_err\.jac$' || true)
+          [ -z "$CHANGED" ] && { echo "No changed .jac files - diff-scoped check skipped."; exit 0; }
+          echo "Type-checking changed files (cross-file breaks caught by the merge-queue full check):"
+          echo "$CHANGED"
+          jac check $CHANGED --nowarn
+
+  # ==================================================================
+  # MERGE PATH - authoritative FULL suite, all parallel, runs once per merge
+  # ==================================================================
+  merge-typecheck-full:
+    if: github.event_name == 'merge_group'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with: { submodules: true }
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.12', cache: pip }
+      - name: Install toolchain
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ./jac
+          jac install -e ./jac-scale --extras all
+          jac install -e ./jac-byllm
+      - name: Whole-repo jac check (cold, dependency-complete)
+        run: |
+          jac purge >/dev/null 2>&1 || true
+          jac check . --ignore tests checker_*.jac *_err.jac $(grep -v '^#' .jacignore | grep -v '^[[:space:]]*$' | tr '\n' ' ') --nowarn
+
+  merge-compiler:
+    if: github.event_name == 'merge_group'
+    runs-on: ubuntu-latest
+    strategy: { fail-fast: false, matrix: { group: [1, 2, 3] } }
+    steps:
+      - uses: actions/checkout@v5
+        with: { submodules: true }
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.12', cache: pip }
+      - run: |
+          python -m pip install --upgrade pip
+          pip install -e jac pytest pytest-xdist pytest-split watchdog
+      - run: pytest jac/tests/compiler -n auto --splits 3 --group ${{ matrix.group }}
+
+  merge-runtime:
+    if: github.event_name == 'merge_group'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -103,12 +158,11 @@ jobs:
       - uses: oven-sh/setup-bun@v2
       - run: |
           python -m pip install --upgrade pip
-          pip install -e jac
-          pip install pytest pytest-xdist watchdog
+          pip install -e jac pytest pytest-xdist watchdog
       - run: pytest -x jac -n auto --ignore=jac/tests/compiler
 
-  t1-client:
-    needs: [tier0-gate]
+  merge-client:
+    if: github.event_name == 'merge_group'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -120,80 +174,17 @@ jobs:
       - uses: oven-sh/setup-bun@v2
       - run: |
           python -m pip install --upgrade pip
-          pip install -e jac
-          pip install pytest pytest-xdist playwright
+          pip install -e jac pytest pytest-xdist playwright
       - uses: actions/cache@v4
-        with:
-          path: ~/.cache/ms-playwright
-          key: ${{ runner.os }}-playwright-chromium
+        with: { path: ~/.cache/ms-playwright, key: "${{ runner.os }}-playwright-chromium" }
       - run: playwright install chromium --with-deps
       - run: echo "TEST_ENV=true" >> $GITHUB_ENV
       - run: pytest -x jac/tests/runtimelib/client -n auto
 
-  t1-typecheck:
-    needs: [tier0-gate]
+  merge-scale:
+    if: github.event_name == 'merge_group'
     runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v5
-        with: { fetch-depth: 0, submodules: true }
-      - uses: actions/setup-python@v5
-        with: { python-version: '3.12', cache: pip }
-      - run: |
-          python -m pip install --upgrade pip
-          pip install -e ./jac
-          jac install -e ./jac-scale --extras all
-          jac install -e ./jac-byllm
-      - run: jac --version
-      # PR/branch: type-check only CHANGED .jac files for fast feedback.
-      # Safety net: main runs the whole-repo check (see "whole-repo on main" below),
-      # which catches type breaks in dependents a changed-files scan would miss.
-      - name: jac check (diff-scoped on branch)
-        if: github.ref != 'refs/heads/main'
-        run: |
-          git remote add upstream https://github.com/jaseci-labs/jaseci.git 2>/dev/null || true
-          git fetch upstream main --depth=1 2>/dev/null || true
-          BASE=$(git merge-base upstream/main HEAD 2>/dev/null \
-                 || git merge-base origin/main HEAD 2>/dev/null || echo "")
-          IGN="--ignore tests checker_*.jac *_err.jac $(grep -v '^#' .jacignore | grep -v '^[[:space:]]*$' | tr '\n' ' ') --nowarn"
-          if [ -z "$BASE" ]; then jac check . $IGN; exit $?; fi
-          CHANGED=$(git diff --name-only "$BASE"...HEAD -- '*.jac' \
-            | grep -v '/fixtures/' | grep -v '_err\.jac$' || true)
-          if [ -z "$CHANGED" ]; then
-            echo "No changed .jac files - type check skipped (vs whole-repo scan)."
-            exit 0
-          fi
-          echo "Type-checking changed files:"; echo "$CHANGED"
-          jac check $CHANGED --nowarn
-      - name: jac check (whole repo on main)
-        if: github.ref == 'refs/heads/main'
-        run: jac check . --ignore tests checker_*.jac *_err.jac $(grep -v '^#' .jacignore | grep -v '^[[:space:]]*$' | tr '\n' ' ') --nowarn
-
-  # ===================== TIER 2: broad suite (only if Tier 1 green) =====================
-  t2-compiler:
-    needs: [t1-runtime, t1-client, t1-typecheck]
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        group: [1, 2, 3]
-    steps:
-      - uses: actions/checkout@v5
-        with: { submodules: true }
-      - uses: actions/setup-python@v5
-        with: { python-version: '3.12', cache: pip }
-      - run: |
-          python -m pip install --upgrade pip
-          pip install -e jac
-          pip install pytest pytest-xdist pytest-split watchdog
-      - run: pytest jac/tests/compiler -n auto --splits 3 --group ${{ matrix.group }}
-
-  t2-scale:
-    needs: [t1-runtime, t1-client, t1-typecheck]
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        group: [server, data, microservices, deploy, misc]
+    strategy: { fail-fast: false, matrix: { group: [server, data, microservices, deploy, misc] } }
     steps:
       - uses: actions/checkout@v5
         with: { submodules: true }
@@ -212,13 +203,10 @@ jobs:
           done
           [ -z "$failed" ] || { echo "::error::Failed:$failed"; exit 1; }
 
-  t2-light:
-    needs: [t1-runtime, t1-client, t1-typecheck]
+  merge-light:
+    if: github.event_name == 'merge_group'
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        suite: [mcp, desktop, solid]
+    strategy: { fail-fast: false, matrix: { suite: [mcp, desktop, solid] } }
     steps:
       - uses: actions/checkout@v5
         with: { submodules: true }
@@ -227,11 +215,9 @@ jobs:
       - uses: oven-sh/setup-bun@v2
       - run: |
           python -m pip install --upgrade pip
-          pip install -e jac
-          pip install pytest pytest-xdist watchdog
-      - name: Install + run ${{ matrix.suite }}
-        env:
-          JAC_CLIENT_INTEGRATION: "1"
+          pip install -e jac pytest pytest-xdist watchdog
+      - name: Run ${{ matrix.suite }}
+        env: { JAC_CLIENT_INTEGRATION: "1" }
         run: |
           case "${{ matrix.suite }}" in
             mcp)     jac install -e jac-mcp; pytest -x jac-mcp -n auto ;;
@@ -239,17 +225,18 @@ jobs:
             solid)   pytest -x -vv jac/tests/runtimelib/test_solid_jsdom.jac ;;
           esac
 
-  # ===================== report =====================
+  # NOTE: on the real repo, the k8s jobs (test-scale-k8s, K8s real-app e2e) run
+  # here too, on Blacksmith (fast disk/network). Omitted on the fork (no runner).
+
   report:
-    needs: [tier0-gate, t1-runtime, t1-client, t1-typecheck, t2-compiler, t2-scale, t2-light]
+    needs: [pr-gate, pr-typecheck, merge-typecheck-full, merge-compiler, merge-runtime, merge-client, merge-scale, merge-light]
     if: always()
     runs-on: ubuntu-latest
     steps:
       - name: Timing report
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        env: { GH_TOKEN: "${{ secrets.GITHUB_TOKEN }}" }
         run: |
-          echo "## Tiered pipeline timing (free ubuntu-latest)" >> $GITHUB_STEP_SUMMARY
+          echo "## ${{ github.event_name }} path - timing" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "| Job | Conclusion | Minutes |" >> $GITHUB_STEP_SUMMARY
           echo "|-----|-----------|--------:|" >> $GITHUB_STEP_SUMMARY
