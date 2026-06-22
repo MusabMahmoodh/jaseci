@@ -31,14 +31,55 @@ jobs:
         with:
           python-version: '3.12'
           cache: pip
+      # Resolve the diff base against the REAL upstream main. On a fork, origin/main
+      # is often stale (here it was 491 .jac files behind), which would balloon the
+      # "changed files" set. On a real upstream PR, origin/main is already correct;
+      # this upstream fetch just makes fork measurement faithful.
+      - name: Resolve base ref (upstream/main)
+        id: base
+        run: |
+          git remote add upstream https://github.com/jaseci-labs/jaseci.git 2>/dev/null || true
+          git fetch upstream main --depth=1 2>/dev/null || true
+          BASE=$(git merge-base upstream/main HEAD 2>/dev/null \
+                 || git merge-base origin/main HEAD 2>/dev/null || echo "")
+          echo "base=$BASE" >> "$GITHUB_OUTPUT"
+          echo "Resolved base: ${BASE:-<none>}"
+      # Cheap policy checks - no install needed. These mirror the bespoke steps in
+      # contribution-checks.yml and the pre-commit hooks; running them first gates
+      # the heavy suite so a policy slip fails in seconds, not after the fan-out.
+      - name: Policy checks
+        env:
+          BASE: ${{ steps.base.outputs.base }}
+        run: |
+          [ -z "$BASE" ] && { echo "no base; skipping policy checks"; exit 0; }
+          # Block AI co-author trailers
+          if git log "$BASE"..HEAD --format='%b' \
+            | grep -iP 'co-authored-by:.*\b(claude|anthropic|openai|copilot|composer|cursor|gpt|gemini|ai|bot)\b'; then
+            echo "::error::AI co-author trailer found in commits"; exit 1
+          fi
+          # Block new .py files
+          if git diff --name-only --diff-filter=A "$BASE"...HEAD | grep -P '\.py$'; then
+            echo "::error::New .py files are not allowed"; exit 1
+          fi
+          # Ban em-dashes in changed markdown
+          MD=$(git diff --name-only "$BASE"...HEAD -- '*.md' || true)
+          if [ -n "$MD" ] && echo "$MD" | xargs -r grep -lP '\xe2\x80\x94' 2>/dev/null; then
+            echo "::error::Em-dash (U+2014) found in changed markdown"; exit 1
+          fi
+      - name: Release-note fragment check
+        env:
+          CI: "true"
+          PRE_COMMIT_FROM_REF: ${{ steps.base.outputs.base }}
+          PRE_COMMIT_TO_REF: HEAD
+        run: bash scripts/check-release-notes.sh
       - name: Install jac toolchain
         run: |
           python -m pip install --upgrade pip
           pip install -e jac
       - name: Diff-scoped jac format (changed .jac files only)
+        env:
+          BASE: ${{ steps.base.outputs.base }}
         run: |
-          git fetch origin main --depth=1 2>/dev/null || true
-          BASE=$(git merge-base origin/main HEAD 2>/dev/null || echo "")
           if [ -z "$BASE" ]; then echo "no base ref; skipping"; exit 0; fi
           CHANGED=$(git diff --name-only "$BASE"...HEAD -- '*.jac' \
             | grep -v '/fixtures/' | grep -v '^scripts/' | grep -v '_err\.jac$' || true)
@@ -109,8 +150,10 @@ jobs:
       - name: jac check (diff-scoped on branch)
         if: github.ref != 'refs/heads/main'
         run: |
-          git fetch origin main --depth=1 2>/dev/null || true
-          BASE=$(git merge-base origin/main HEAD 2>/dev/null || echo "")
+          git remote add upstream https://github.com/jaseci-labs/jaseci.git 2>/dev/null || true
+          git fetch upstream main --depth=1 2>/dev/null || true
+          BASE=$(git merge-base upstream/main HEAD 2>/dev/null \
+                 || git merge-base origin/main HEAD 2>/dev/null || echo "")
           IGN="--ignore tests checker_*.jac *_err.jac $(grep -v '^#' .jacignore | grep -v '^[[:space:]]*$' | tr '\n' ' ') --nowarn"
           if [ -z "$BASE" ]; then jac check . $IGN; exit $?; fi
           CHANGED=$(git diff --name-only "$BASE"...HEAD -- '*.jac' \
