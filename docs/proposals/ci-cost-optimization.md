@@ -352,35 +352,38 @@ therefore miss cross-file type breaks - the same blind spot as diff-scoping.
 Making the cache transitively aware is a jaclang-core change (out of scope per
 project policy), so the fix is at the CI level, not the compiler.
 
-## G. Final architecture: PR-light + merge-full (two-speed)
+## G. Final architecture: static gate + label-gated full suite
 
-Run the cheap signal on every push, the authoritative full suite rarely (at
-merge), via a GitHub merge queue (`merge_group`):
+Run the cheap signal on every push; run the authoritative full suite only once a
+PR is marked ready, via a `ready-for-review` label (implemented in
+`ci-tiered.yml`):
 
-| Event | Frequency | What runs | Runner |
-|-------|-----------|-----------|--------|
-| PR / push | every push (often) | policy gate, diff-scoped format, **diff-scoped** jac check | free |
-| `merge_group` | once per merge (rare) | **whole-repo (cold) jac check** + full test suite, all in parallel | free + Blacksmith (k8s only) |
+| Trigger | Frequency | What runs | Runner |
+|---------|-----------|-----------|--------|
+| every push | often (incl. WIP) | policy gate, diff-scoped format, **diff-scoped** jac check | free |
+| `ready-for-review` label present | only when ready | **whole-repo (cold) jac check** + full test suite, all in parallel | free + Blacksmith (k8s only) |
 | nightly | daily | test-pypi-build + jacpack smokes | free or Blacksmith |
 
 Why this is the right shape:
 
-- **Safe:** the cold whole-repo `jac check .` at merge catches cross-file breaks
-  the diff-scoped PR check cannot (and the cache cannot, per F).
-- **No red main:** the full check gates *pre-merge* (merge queue), not after.
-- **Cheap:** the expensive full check + full test suite run **once per merge**
-  instead of on **every push**. jac-check alone is 64,964 min/30d today, most of
-  it redundant per-push reruns - this is the single largest structural cut.
-- **At merge, run all jobs in parallel** (no fail-fast tiering): merges are rare
-  and you want fastest time-to-land.
+- **Cheap WIP:** the expensive whole-repo check + full tests do not run on every
+  WIP push - only on a labeled (ready) PR. jac-check alone is 64,964 min/30d
+  today, most of it redundant per-push reruns; this is the single largest cut.
+- **Safe:** when labeled, the cold whole-repo `jac check .` catches cross-file
+  breaks that the diff-scoped check and the (non-dependency-aware) cache cannot.
+  Because it re-runs on every push *while labeled*, it stays current - no stale
+  "ready" run.
+- **Parallel at full:** Stage 2 runs all jobs in parallel (no fail-fast tiering).
 
-Tradeoff to accept: a PR author sees only lint/type(diff)/format on pushes; full
-test results appear when the PR enters the merge queue. If queue bounce-back is a
-concern, optionally add the two highest-value fast jobs (runtime, client) to the
-PR path - they catch ~13% / ~8% of failures in ~5 min.
+Stable required check: `ready-status` always runs and passes unless something
+actually failed (skipped heavy jobs on label-less PRs count as ok). Make *that*
+the single required status check so branch protection never hangs on
+"waiting for status" when the label is absent.
 
-Setup required: enable a merge queue on `main` (repo ruleset / branch
-protection) with the `merge_group` checks as the required gate.
+Tradeoff: a PR author sees only lint/type(diff)/format until they add the
+`ready-for-review` label. If desired, add the two highest-value fast jobs
+(runtime, client) to the always-on stage - they catch ~13% / ~8% of failures.
 
-Net: Blacksmith spend down ~80-90% (only k8s, only at merge), PR feedback in
-~5 min, and the authoritative suite runs a few times a day instead of hundreds.
+Optional stronger guarantee: layer a merge queue (`merge_group`) on top so the
+full check also runs against the latest `main` immediately before landing. The
+label gate is the cost lever; the merge queue is the belt-and-suspenders.

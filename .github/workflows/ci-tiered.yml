@@ -1,17 +1,19 @@
-name: CI (PR-light + merge-full)
+name: CI (static gate + label-gated full suite)
 
-# Two-speed pipeline:
-#   PR / push  -> cheap fast feedback only: policy gate, diff-scoped format,
-#                 diff-scoped jac check. Runs on every push (the frequent case).
-#   merge_group-> the authoritative FULL suite, all jobs in parallel: whole-repo
-#                 (cold) jac check + every test job. Runs once per merge (rare).
+# Cost model:
+#   Stage 1 - static checks (ALWAYS, every push): policy gate, diff-scoped
+#             format, diff-scoped jac check. Cheap fast feedback during WIP.
+#   Stage 2 - full suite (ONLY when the PR carries the 'ready-for-review' label):
+#             whole-repo (cold) jac check + every test job, all in parallel.
 #
-# Why: the .jir cache is NOT dependency-aware (key = own source + impl/test/
-# variant/style siblings, not imports), so a cached incremental whole-repo check
-# would miss cross-file breaks. The safe + cheap answer is to run the cold
-# whole-repo check rarely (pre-merge) instead of on every push.
+# The expensive whole-repo check + full tests run only once a PR is marked ready,
+# not on every WIP push. The whole-repo (cold) jac check is the authoritative
+# cross-file type gate - the .jir cache is NOT dependency-aware, so a cached
+# incremental check would miss cross-file breaks (see proposal doc, section F).
 #
-# Requires a merge queue (repo ruleset / branch protection) so merge_group fires.
+# `ready-status` is a single stable required check: it passes when nothing failed
+# (skipped heavy jobs on label-less PRs count as ok), so branch protection never
+# hangs on "waiting for status".
 # Measurement branch; not for merge to main.
 
 on:
@@ -20,19 +22,20 @@ on:
       - 'ci-benchmark/**'
   pull_request:
     branches: [main]
-  merge_group:
+    types: [opened, synchronize, reopened, labeled, unlabeled, ready_for_review]
   workflow_dispatch:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' || github.event_name == 'push' }}
 
+env:
+  # True only on a PR that carries the 'ready-for-review' label.
+  READY: ${{ contains(github.event.pull_request.labels.*.name, 'ready-for-review') }}
+
 jobs:
-  # ==================================================================
-  # PR / PUSH PATH - cheap, runs on every push
-  # ==================================================================
+  # ================= STAGE 1: static checks (always) =================
   pr-gate:
-    if: github.event_name != 'merge_group'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -83,7 +86,6 @@ jobs:
           echo "$CHANGED" | xargs jac format --check --lintfix
 
   pr-typecheck:
-    if: github.event_name != 'merge_group'
     needs: [pr-gate]
     runs-on: ubuntu-latest
     steps:
@@ -106,16 +108,15 @@ jobs:
           [ -z "$BASE" ] && { jac check . --nowarn; exit $?; }
           CHANGED=$(git diff --name-only "$BASE"...HEAD -- '*.jac' \
             | grep -v '/fixtures/' | grep -v '_err\.jac$' || true)
-          [ -z "$CHANGED" ] && { echo "No changed .jac files - diff-scoped check skipped."; exit 0; }
-          echo "Type-checking changed files (cross-file breaks caught by the merge-queue full check):"
+          [ -z "$CHANGED" ] && { echo "No changed .jac files - skipped."; exit 0; }
+          echo "Type-checking changed files (cross-file breaks caught by the ready-for-review full check):"
           echo "$CHANGED"
           jac check $CHANGED --nowarn
 
-  # ==================================================================
-  # MERGE PATH - authoritative FULL suite, all parallel, runs once per merge
-  # ==================================================================
-  merge-typecheck-full:
-    if: github.event_name == 'merge_group'
+  # ============ STAGE 2: full suite (only when 'ready-for-review') ============
+  full-typecheck:
+    needs: [pr-gate]
+    if: contains(github.event.pull_request.labels.*.name, 'ready-for-review')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -133,8 +134,9 @@ jobs:
           jac purge >/dev/null 2>&1 || true
           jac check . --ignore tests checker_*.jac *_err.jac $(grep -v '^#' .jacignore | grep -v '^[[:space:]]*$' | tr '\n' ' ') --nowarn
 
-  merge-compiler:
-    if: github.event_name == 'merge_group'
+  full-compiler:
+    needs: [pr-gate]
+    if: contains(github.event.pull_request.labels.*.name, 'ready-for-review')
     runs-on: ubuntu-latest
     strategy: { fail-fast: false, matrix: { group: [1, 2, 3] } }
     steps:
@@ -147,8 +149,9 @@ jobs:
           pip install -e jac pytest pytest-xdist pytest-split watchdog
       - run: pytest jac/tests/compiler -n auto --splits 3 --group ${{ matrix.group }}
 
-  merge-runtime:
-    if: github.event_name == 'merge_group'
+  full-runtime:
+    needs: [pr-gate]
+    if: contains(github.event.pull_request.labels.*.name, 'ready-for-review')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -161,8 +164,9 @@ jobs:
           pip install -e jac pytest pytest-xdist watchdog
       - run: pytest -x jac -n auto --ignore=jac/tests/compiler
 
-  merge-client:
-    if: github.event_name == 'merge_group'
+  full-client:
+    needs: [pr-gate]
+    if: contains(github.event.pull_request.labels.*.name, 'ready-for-review')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -181,8 +185,9 @@ jobs:
       - run: echo "TEST_ENV=true" >> $GITHUB_ENV
       - run: pytest -x jac/tests/runtimelib/client -n auto
 
-  merge-scale:
-    if: github.event_name == 'merge_group'
+  full-scale:
+    needs: [pr-gate]
+    if: contains(github.event.pull_request.labels.*.name, 'ready-for-review')
     runs-on: ubuntu-latest
     strategy: { fail-fast: false, matrix: { group: [server, data, microservices, deploy, misc] } }
     steps:
@@ -203,8 +208,9 @@ jobs:
           done
           [ -z "$failed" ] || { echo "::error::Failed:$failed"; exit 1; }
 
-  merge-light:
-    if: github.event_name == 'merge_group'
+  full-light:
+    needs: [pr-gate]
+    if: contains(github.event.pull_request.labels.*.name, 'ready-for-review')
     runs-on: ubuntu-latest
     strategy: { fail-fast: false, matrix: { suite: [mcp, desktop, solid] } }
     steps:
@@ -225,21 +231,35 @@ jobs:
             solid)   pytest -x -vv jac/tests/runtimelib/test_solid_jsdom.jac ;;
           esac
 
-  # NOTE: on the real repo, the k8s jobs (test-scale-k8s, K8s real-app e2e) run
-  # here too, on Blacksmith (fast disk/network). Omitted on the fork (no runner).
+  # NOTE: on the real repo the k8s jobs (test-scale-k8s, K8s real-app e2e) join
+  # Stage 2 here, on Blacksmith. Omitted on the fork (no Blacksmith runner).
 
-  report:
-    needs: [pr-gate, pr-typecheck, merge-typecheck-full, merge-compiler, merge-runtime, merge-client, merge-scale, merge-light]
+  # ============ stable required check + timing summary ============
+  ready-status:
+    needs: [pr-gate, pr-typecheck, full-typecheck, full-compiler, full-runtime, full-client, full-scale, full-light]
     if: always()
     runs-on: ubuntu-latest
     steps:
-      - name: Timing report
+      - name: Gate (fail only if something actually failed)
+        run: |
+          for r in \
+            "${{ needs.pr-gate.result }}" "${{ needs.pr-typecheck.result }}" \
+            "${{ needs.full-typecheck.result }}" "${{ needs.full-compiler.result }}" \
+            "${{ needs.full-runtime.result }}" "${{ needs.full-client.result }}" \
+            "${{ needs.full-scale.result }}" "${{ needs.full-light.result }}"; do
+            if [ "$r" = "failure" ] || [ "$r" = "cancelled" ]; then
+              echo "::error::a required job concluded '$r'"; exit 1
+            fi
+          done
+          echo "All required jobs passed (skipped heavy jobs on label-less PRs are ok). READY=${{ env.READY }}"
+      - name: Timing summary
+        if: always()
         env: { GH_TOKEN: "${{ secrets.GITHUB_TOKEN }}" }
         run: |
-          echo "## ${{ github.event_name }} path - timing" >> $GITHUB_STEP_SUMMARY
+          echo "## CI timing (READY=${{ env.READY }})" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "| Job | Conclusion | Minutes |" >> $GITHUB_STEP_SUMMARY
           echo "|-----|-----------|--------:|" >> $GITHUB_STEP_SUMMARY
           gh api "repos/${{ github.repository }}/actions/runs/${{ github.run_id }}/jobs" --paginate \
-            --jq '.jobs[] | select(.name!="report") | select(.status=="completed") | [.name, .conclusion, (((.completed_at|fromdateiso8601)-(.started_at|fromdateiso8601))/60)] | @tsv' \
-            | awk -F'\t' '{printf "| %s | %s | %.1f |\n",$1,$2,$3; s+=$3} END{printf "| **TOTAL** | | **%.1f** |\n",s}' >> $GITHUB_STEP_SUMMARY
+            --jq '.jobs[] | select(.name!="ready-status") | select(.status=="completed") | [.name, .conclusion, (((.completed_at|fromdateiso8601)-(.started_at|fromdateiso8601))/60)] | @tsv' \
+            | awk -F'\t' '{printf "| %s | %s | %.1f |\n",$1,$2,$3; if($2!="skipped")s+=$3} END{printf "| **TOTAL (ran)** | | **%.1f** |\n",s}' >> $GITHUB_STEP_SUMMARY
