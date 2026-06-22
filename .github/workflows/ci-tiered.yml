@@ -1,0 +1,215 @@
+name: CI Tiered Pipeline (free, fail-fast)
+
+# Demonstrates the time-optimal fail-fast pipeline on FREE ubuntu-latest:
+#   Tier 0 (instant): policy checks + DIFF-SCOPED jac format (changed files only)
+#   Tier 1 (~6 min) : highest failures-caught-per-minute gate (runtime, client, types)
+#   Tier 2 (~10 min): broad suite, runs only if Tier 1 is green (compiler sharded, scale, light)
+#   Tier 3          : heavy/slow - on the real repo these are Blacksmith (k8s) or nightly (pypi)
+# Sequential BETWEEN tiers (via needs:), parallel WITHIN a tier.
+# Measurement branch; not for merge to main.
+
+on:
+  push:
+    branches:
+      - 'ci-benchmark/**'
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ===================== TIER 0: instant gate =====================
+  tier0-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          submodules: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+      - name: Install jac toolchain
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e jac
+      - name: Diff-scoped jac format (changed .jac files only)
+        run: |
+          git fetch origin main --depth=1 2>/dev/null || true
+          BASE=$(git merge-base origin/main HEAD 2>/dev/null || echo "")
+          if [ -z "$BASE" ]; then echo "no base ref; skipping"; exit 0; fi
+          CHANGED=$(git diff --name-only "$BASE"...HEAD -- '*.jac' \
+            | grep -v '/fixtures/' | grep -v '^scripts/' | grep -v '_err\.jac$' || true)
+          if [ -z "$CHANGED" ]; then
+            echo "No changed .jac files - format check skipped (vs whole-repo scan of every file)."
+            exit 0
+          fi
+          echo "Checking changed files:"; echo "$CHANGED"
+          echo "$CHANGED" | xargs jac format --check --lintfix
+
+  # ===================== TIER 1: fast correctness gate =====================
+  # Ordered first by failures-caught-per-minute: runtime (2.50), client (2.19), types.
+  t1-runtime:
+    needs: [tier0-gate]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with: { submodules: true }
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.12', cache: pip }
+      - uses: oven-sh/setup-bun@v2
+      - run: |
+          python -m pip install --upgrade pip
+          pip install -e jac
+          pip install pytest pytest-xdist watchdog
+      - run: pytest -x jac -n auto --ignore=jac/tests/compiler
+
+  t1-client:
+    needs: [tier0-gate]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with: { submodules: true }
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.12', cache: pip }
+      - uses: actions/setup-node@v4
+        with: { node-version: '20' }
+      - uses: oven-sh/setup-bun@v2
+      - run: |
+          python -m pip install --upgrade pip
+          pip install -e jac
+          pip install pytest pytest-xdist playwright
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-chromium
+      - run: playwright install chromium --with-deps
+      - run: echo "TEST_ENV=true" >> $GITHUB_ENV
+      - run: pytest -x jac/tests/runtimelib/client -n auto
+
+  t1-typecheck:
+    needs: [tier0-gate]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with: { fetch-depth: 0, submodules: true }
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.12', cache: pip }
+      - run: |
+          python -m pip install --upgrade pip
+          pip install -e ./jac
+          jac install -e ./jac-scale --extras all
+          jac install -e ./jac-byllm
+      - run: jac --version
+      # PR/branch: type-check only CHANGED .jac files for fast feedback.
+      # Safety net: main runs the whole-repo check (see "whole-repo on main" below),
+      # which catches type breaks in dependents a changed-files scan would miss.
+      - name: jac check (diff-scoped on branch)
+        if: github.ref != 'refs/heads/main'
+        run: |
+          git fetch origin main --depth=1 2>/dev/null || true
+          BASE=$(git merge-base origin/main HEAD 2>/dev/null || echo "")
+          IGN="--ignore tests checker_*.jac *_err.jac $(grep -v '^#' .jacignore | grep -v '^[[:space:]]*$' | tr '\n' ' ') --nowarn"
+          if [ -z "$BASE" ]; then jac check . $IGN; exit $?; fi
+          CHANGED=$(git diff --name-only "$BASE"...HEAD -- '*.jac' \
+            | grep -v '/fixtures/' | grep -v '_err\.jac$' || true)
+          if [ -z "$CHANGED" ]; then
+            echo "No changed .jac files - type check skipped (vs whole-repo scan)."
+            exit 0
+          fi
+          echo "Type-checking changed files:"; echo "$CHANGED"
+          jac check $CHANGED --nowarn
+      - name: jac check (whole repo on main)
+        if: github.ref == 'refs/heads/main'
+        run: jac check . --ignore tests checker_*.jac *_err.jac $(grep -v '^#' .jacignore | grep -v '^[[:space:]]*$' | tr '\n' ' ') --nowarn
+
+  # ===================== TIER 2: broad suite (only if Tier 1 green) =====================
+  t2-compiler:
+    needs: [t1-runtime, t1-client, t1-typecheck]
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        group: [1, 2, 3]
+    steps:
+      - uses: actions/checkout@v5
+        with: { submodules: true }
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.12', cache: pip }
+      - run: |
+          python -m pip install --upgrade pip
+          pip install -e jac
+          pip install pytest pytest-xdist pytest-split watchdog
+      - run: pytest jac/tests/compiler -n auto --splits 3 --group ${{ matrix.group }}
+
+  t2-scale:
+    needs: [t1-runtime, t1-client, t1-typecheck]
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        group: [server, data, microservices, deploy, misc]
+    steps:
+      - uses: actions/checkout@v5
+        with: { submodules: true }
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.12', cache: pip }
+      - uses: oven-sh/setup-bun@v2
+      - run: |
+          python -m pip install --upgrade pip
+          pip install -e jac
+          jac install -e jac-scale --extras test
+          pip install pytest pytest-asyncio requests watchdog websockets
+      - run: |
+          set +e; failed=""
+          for f in jac-scale/jac_scale/tests/${{ matrix.group }}/test_*.jac; do
+            echo "::group::$f"; pytest -vv -s "$f" || failed="$failed $f"; echo "::endgroup::"
+          done
+          [ -z "$failed" ] || { echo "::error::Failed:$failed"; exit 1; }
+
+  t2-light:
+    needs: [t1-runtime, t1-client, t1-typecheck]
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        suite: [mcp, desktop, solid]
+    steps:
+      - uses: actions/checkout@v5
+        with: { submodules: true }
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.12', cache: pip }
+      - uses: oven-sh/setup-bun@v2
+      - run: |
+          python -m pip install --upgrade pip
+          pip install -e jac
+          pip install pytest pytest-xdist watchdog
+      - name: Install + run ${{ matrix.suite }}
+        env:
+          JAC_CLIENT_INTEGRATION: "1"
+        run: |
+          case "${{ matrix.suite }}" in
+            mcp)     jac install -e jac-mcp; pytest -x jac-mcp -n auto ;;
+            desktop) pytest -x jac/tests/runtimelib/client/test_desktop_binding.jac -n auto ;;
+            solid)   pytest -x -vv jac/tests/runtimelib/test_solid_jsdom.jac ;;
+          esac
+
+  # ===================== report =====================
+  report:
+    needs: [tier0-gate, t1-runtime, t1-client, t1-typecheck, t2-compiler, t2-scale, t2-light]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Timing report
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "## Tiered pipeline timing (free ubuntu-latest)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Job | Conclusion | Minutes |" >> $GITHUB_STEP_SUMMARY
+          echo "|-----|-----------|--------:|" >> $GITHUB_STEP_SUMMARY
+          gh api "repos/${{ github.repository }}/actions/runs/${{ github.run_id }}/jobs" --paginate \
+            --jq '.jobs[] | select(.name!="report") | select(.status=="completed") | [.name, .conclusion, (((.completed_at|fromdateiso8601)-(.started_at|fromdateiso8601))/60)] | @tsv' \
+            | awk -F'\t' '{printf "| %s | %s | %.1f |\n",$1,$2,$3; s+=$3} END{printf "| **TOTAL** | | **%.1f** |\n",s}' >> $GITHUB_STEP_SUMMARY

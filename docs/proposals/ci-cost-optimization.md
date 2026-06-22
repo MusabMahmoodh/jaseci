@@ -225,3 +225,124 @@ so it needs a branch-protection update and should land last.
 
 Recommended: land **1 + 3** first, run the benchmark PR to confirm the ~80%
 figure on real runs, then do **2 + 4**.
+
+---
+
+# Part 2: Measured results (real data)
+
+This section supersedes the projections above with measured numbers.
+
+## A. Spend and waste (real, from GitHub Actions Analytics, 30-day, normalized minutes)
+
+Top jobs by billable minutes per 30 days:
+
+| Job | Norm. min / 30d | Failure % | P50 |
+|-----|----------------:|----------:|----:|
+| jac-check (type check) | 64,964 | 14.33% | 11.5 min |
+| test-scale-k8s | 63,434 | 8.38% | 17.5 min |
+| test-scale | 58,396 | 6.12% | 10.2 min |
+| test-pypi-build | 55,116 | 4.93% | 9.1 min |
+| test-core-compiler | 54,912 | 4.89% | 9.4 min |
+| test-client | 39,580 | 8.50% | 3.9 min |
+| test-core-runtime | 33,792 | 13.43% | 5.4 min |
+| test-packages-and-docs | 33,426 | 3.61% | 5.1 min |
+| K8s real-app e2e | 31,620 | 7.12% | 7.6 min |
+| test-scale-k8s (deploy-core) | 23,088 | 6.26% | 12.7 min |
+| **Visible total** | **458,328** | | |
+
+Waste from failures + reruns:
+
+- **Floor** (minutes spent on the failed job-attempts themselves):
+  ~36,400 min/30d (~8%).
+- **Realistic** (a failed required job blocks merge, so the whole run re-runs;
+  sibling passing jobs are wasted too): ~2-3x the floor =
+  **~75,000-110,000 min/month (16-22%)**.
+- Cost depends on the Blacksmith contract rate. At $0.004 / $0.008 / $0.016 per
+  minute, total spend is ~$1.8k / $3.7k / $7.3k per month and realistic waste is
+  ~$300-$1,700/month.
+- Biggest waste contributors: **jac-check** (14.33% fail on the single most
+  expensive job) and **test-core-runtime** (13.43%).
+
+## B. Does every job need Blacksmith? No - only the 2 k8s jobs
+
+Public repo => `ubuntu-latest` is free. Blacksmith only earns its cost where fast
+disk/network matter:
+
+| Job | Runner | Why |
+|-----|--------|-----|
+| test-scale-k8s | **Blacksmith** | kind cluster: image pulls, disk-heavy |
+| K8s real-app e2e | **Blacksmith** | microk8s real cluster |
+| test-pypi-build | free, or nightly | heavy but network-bound; not a per-PR signal |
+| compiler / runtime | free + shard | pure pytest |
+| client / scale / mcp / desktop / solid / packages-docs | free | pure pytest |
+| jac-check / contribution-checks | free | lint / type / policy |
+
+So ~2 of ~14 jobs keep Blacksmith; the rest move to free runners.
+
+## C. Free-runner benchmark (measured on a fork, run 27953581830)
+
+| Job | Blacksmith (paid) | Free ubuntu-latest | Ratio |
+|-----|------------------:|-------------------:|-------|
+| compiler (single) | 11.6 min | 27.1 min | 2.3x slower |
+| compiler (sharded x3) | 11.6 min | 12.6 min (slowest shard) | ~same, $0 |
+| runtime | 7.5 min | 17.1 min | 2.3x |
+| scale (server) | 8.3 min | 12.3 min | 1.5x |
+| client | 4.4 min | 6.8 min | 1.5x |
+
+Conclusion: free runners are 1.5-2.3x slower per job, but **3-way sharding erases
+the long-pole wall-clock gap at $0**.
+
+## D. jac-check scans every file on every run (the biggest single fix)
+
+[jac-check.yml](../../.github/workflows/jac-check.yml#L40-L50) runs
+`jac format --check` over **all** `.jac` files and `jac check .` over the
+**whole repo** every run - and it is the #1 billable-minute job (64,964/30d).
+
+- **`jac format --check`: diff-scope to changed files. Always safe.**
+- **`jac check` (type): diff-scope on PRs, whole-repo on `main`.** Changed-files
+  type checking can miss breaks in *dependents*; the main-branch whole-repo run
+  is the safety net. Implemented in `ci-tiered.yml` `t1-typecheck`.
+
+## E. Time-optimal fail-fast pipeline
+
+Order checks by **failures caught per minute** (`fail% / P50`); gate slow
+expensive jobs behind cheap fast ones:
+
+| Order | Check | catches/min | fail% | P50 |
+|------:|-------|------------:|------:|----:|
+| 1 | test-core-runtime | 2.50 | 13.4% | 5.4 min |
+| 2 | test-client | 2.19 | 8.5% | 3.9 min |
+| 3 | jac-check (type) | 1.24 | 14.3% | 11.5 min |
+| 4 | K8s real-app e2e | 0.94 | 7.1% | 7.6 min |
+| 5 | test-packages-and-docs | 0.71 | 3.6% | 5.1 min |
+| 6 | test-scale | 0.60 | 6.1% | 10.2 min |
+| 7 | test-pypi-build | 0.54 | 4.9% | 9.1 min |
+| 8 | test-core-compiler | 0.52 | 4.9% | 9.4 min |
+| 9-10 | test-scale-k8s | ~0.48 | 8.4% | 17.5 min |
+
+Sequential *between* tiers, parallel *within* (implemented in `ci-tiered.yml`):
+
+```
+Tier 0  (~30s, free)   policy checks + jac format --check (DIFF-SCOPED)
+Tier 1  (~6 min)       runtime || client || jac check (diff-scoped)
+Tier 2  (~10 min)      compiler(sharded) || scale || mcp/desktop/solid
+Tier 3  (slow/$$)      test-scale-k8s || K8s e2e || pypi  (Blacksmith or nightly)
+```
+
+A PR that breaks runtime/types (the common ~13% case) fails in ~6 min having
+spent ~6 min, instead of triggering the full ~80-100 min fan-out including the
+17-min k8s jobs. Gating keeps the ~173,000 min/month of Tier-3 work from running
+on core-broken PRs - an estimated ~20,000+ min/month saved on top of the
+free-runner move and format scoping.
+
+## F. Final architecture
+
+1. Heavy suite runs on contributors' free fork runners (push to dev branch).
+2. Upstream PR runs the tiered fail-fast pipeline; only the 2 k8s jobs use
+   Blacksmith.
+3. jac-check: diff-scoped format always; diff-scoped type check on PRs,
+   whole-repo on main.
+4. test-pypi-build + jacpack smokes: nightly, off the PR path.
+
+Net: Blacksmith spend down ~80-90%, PR latency equal or better, and broken PRs
+fail in minutes instead of paying for the full fan-out.
