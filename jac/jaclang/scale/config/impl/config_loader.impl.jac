@@ -19,8 +19,6 @@ impl JacScaleConfig.get_default_config(self: JacScaleConfig) -> dict[str, any] {
         },
         'database': {
             'enabled': True,
-            'type': None,
-            'project_id': None,
             'url': None,
             'deploy_mode': 'image',
             'postgres_image': 'postgres:18',
@@ -28,6 +26,7 @@ impl JacScaleConfig.get_default_config(self: JacScaleConfig) -> dict[str, any] {
         },
         'websocket': {
             'backplane': None,
+            'allowed_origins': [],
             'max_message_bytes': 65536,
             'max_connections_per_target': 5000,
             'max_connections_per_user': 10,
@@ -39,7 +38,6 @@ impl JacScaleConfig.get_default_config(self: JacScaleConfig) -> dict[str, any] {
             'namespace': 'default',
             'container_port': 8000,
             'postgres_enabled': True,
-            'postgres_storage_size': '2Gi',
             'ingress_node_port': 30080,
             'ingress_limit_rps': 20,
             'ingress_limit_burst_multiplier': 5,
@@ -189,7 +187,6 @@ impl JacScaleConfig.get_database_config(self: JacScaleConfig) -> dict[str, any] 
     db_config = config.get('database', {});
     return {
         'enabled': bool(db_config.get('enabled', True)),
-        'type': db_config.get('type'),
         'url': os.environ.get('JAC_DB_URL') or db_config.get('url'),
         'deploy_mode': db_config.get('deploy_mode', 'image'),
         'postgres_image': db_config.get('postgres_image', 'postgres:18'),
@@ -381,6 +378,7 @@ impl JacScaleConfig.get_websocket_config(self: JacScaleConfig) -> dict[str, any]
     }
     return {
         'backplane': backplane,
+        'allowed_origins': [str(o) for o in (ws_config.get('allowed_origins') or [])],
         'max_message_bytes': int(_ws_positive(ws_config, 'max_message_bytes', 65536)),
         'max_connections_per_target': int(
             _ws_positive(ws_config, 'max_connections_per_target', 5000)
@@ -412,16 +410,16 @@ impl reset_scale_config -> None {
 impl resolve_password_hash_cost(configured_cost: int) -> int {
     env_val = os.environ.get('JAC_SCALE_PASSWORD_HASH_COST');
     if not env_val {
-        return max(10, min(17, configured_cost));
+        return max(10, min(15, configured_cost));
     }
     try {
         cost = int(env_val);
     } except ValueError as e {
         raise ValueError(
-            f"JAC_SCALE_PASSWORD_HASH_COST must be an integer in 10..17, got: {env_val!r}"
+            f"JAC_SCALE_PASSWORD_HASH_COST must be an integer in 10..15, got: {env_val!r}"
         ) from e;
     }
-    return max(10, min(17, cost));
+    return max(10, min(15, cost));
 }
 
 impl JacScaleConfig.get_telemetry_config(self: JacScaleConfig) -> dict[str, any] {
