@@ -116,14 +116,22 @@ test "gateway-only mode does not report an unserved route healthy" {
     toml = (
         '[project]\n'
         + 'name = "healthdemo"\n'
+        + 'default-app = "web"\n\n'
+        + '[apps.web]\n'
+        + 'kind = "web-app"\n'
         + 'entry-point = "main.jac"\n\n'
-        + '[scale.microservices]\n'
-        + f"gateway_port = {port}\n\n"
-        + '[scale.microservices.routes]\n'
-        + 'ghost_app = "/ghost"\n'
+        + '[apps.ghost_app]\n'
+        + 'kind = "service"\n'
+        + 'entry-point = "ghost_app.jac"\n'
+        + 'route = "/ghost"\n\n'
+        + '[scale.gateway]\n'
+        + f"gateway_port = {port}\n"
     );
     (Path(d) / "jac.toml").write_text(toml);
     (Path(d) / "main.jac").write_text('with entry { print("stub"); }\n');
+    (Path(d) / "ghost_app.jac").write_text(
+        'def:pub ghost -> str {\n    return "never served";\n}\n'
+    );
     admin_dist = Path(d) / ".jac" / "admin";
     admin_dist.mkdir(parents=True, exist_ok=True);
     (admin_dist / "index.html").write_text("<html>staged</html>");
