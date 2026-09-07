@@ -11,9 +11,14 @@ Exposes public functions for order operations. Callable via:
   - sv import: `sv import from orders_app { create_order, list_orders }`
 """
 
-# Shared node types (all services import from the same module so the
-# shared anchor store can be deserialized consistently).
-import from shared.models { Order, Cart, Product, Products }
+# This app declares the node it writes: a node never crosses an app boundary.
+node Order {
+    has id: str,
+        items: list[dict] = [],
+        total: float = 0.0,
+        status: str = "pending",
+        created_at: str = "";
+}
 
 # Inter-service imports - compiler generates HTTP stubs
 import from cart_app { view_cart, clear_cart }
