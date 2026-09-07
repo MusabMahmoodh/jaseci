@@ -75,9 +75,7 @@ test "a pod is in the fleet by its own environment, not by a config key" {
 
 
 test "shared state with no reachable store is refused, not absorbed" {
-    previous = _set_env(
-        {_CLUSTER_ENV: None, _SIBLING_ENV: None, _DB_ENV: _DEAD_URL}
-    );
+    previous = _set_env({_CLUSTER_ENV: None, _SIBLING_ENV: None, _DB_ENV: _DEAD_URL});
     _reset();
     try {
         with testraises(RuntimeError) as exc {
@@ -94,11 +92,7 @@ test "shared state with no reachable store is refused, not absorbed" {
 
 test "a pod never falls back to private buckets, even asking for unshared" {
     previous = _set_env(
-        {
-            _CLUSTER_ENV: '10.96.0.1',
-            _SIBLING_ENV: None,
-            _DB_ENV: _DEAD_URL
-        }
+        {_CLUSTER_ENV: '10.96.0.1', _SIBLING_ENV: None, _DB_ENV: _DEAD_URL}
     );
     _reset();
     try {
