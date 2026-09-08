@@ -26,9 +26,9 @@ import from cart_app { view_cart, clear_cart }
 glob _order_counter: int = 0;
 
 
-def:pub create_order -> dict {
+async def:pub create_order -> dict {
     # 1. Fetch cart from cart service via sv import (HTTP under the hood)
-    cart = view_cart();
+    cart = await view_cart();
     items = cart.get("items", []) if cart else [];
 
     if not items {
@@ -54,7 +54,7 @@ def:pub create_order -> dict {
     );
 
     # 3. Clear cart via sv import
-    clear_cart();
+    await clear_cart();
 
     return {
         "id": order_id,
