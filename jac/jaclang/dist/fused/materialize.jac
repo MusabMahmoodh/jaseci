@@ -211,6 +211,6 @@ def:pub gc_stale(cache_dir: str, keep_key: str) {
             continue;
         }
         say(f"  removing stale runtime {full}...");
-        shutil.rmtree(full);
+        shutil.rmtree(full, ignore_errors=True);
     }
 }
