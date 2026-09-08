@@ -43,6 +43,7 @@ jac/jaclang/byllm/llm.impl/modelpool.impl.jac
 jac/jaclang/byllm/llm.jac
 jac/jaclang/byllm/telemetry.impl/telemetry.impl.jac
 jac/jaclang/byllm/telemetry.jac
+jac/jaclang/byllm/types.impl/media.impl.jac
 jac/jaclang/byllm/types.jac
 
 # jac-scale server surface.
