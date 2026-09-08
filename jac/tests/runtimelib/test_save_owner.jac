@@ -35,7 +35,7 @@ def capture_get(captured: io.StringIO) -> str {
 def _run(entrypoint: str, args: (list | None) = None, root_id: str = "") -> str {
     captured = capture_start();
     execution.run(
-        filename=FIXTURE, entry_name=entrypoint, args=args or [], root_id=root_id
+        target=FIXTURE, entry_name=entrypoint, args=args or [], root_id=root_id
     );
     return capture_get(captured).strip();
 }
