@@ -906,7 +906,7 @@ obj KubernetesTarget(KubernetesTargetBase) {
                     self.logger.warn(
                         f"namespace '{namespace}' has "
                         f"{PSS_ENFORCE_LABEL}={current} from outside jac-scale; "
-                        f"hostPath DaemonSets (node-exporter, Alloy) may be "
+                        f"hostPath volumes configured for this app may be "
                         f"rejected. Relabel manually with `kubectl label "
                         f"namespace {namespace} "
                         f"{PSS_ENFORCE_LABEL}=privileged "
@@ -924,14 +924,14 @@ obj KubernetesTarget(KubernetesTargetBase) {
                 self.logger.info(
                     f"Labeled namespace '{namespace}' with "
                     "pod-security.kubernetes.io/enforce=privileged "
-                    "(required for hostPath DaemonSets)"
+                    "(required for hostPath volumes)"
                 );
             }
         } except Exception as e {
             if self.logger {
                 self.logger.warn(
                     f"Could not label namespace '{namespace}' privileged - "
-                    f"hostPath DaemonSets may be rejected by PodSecurity. "
+                    f"hostPath volumes may be rejected by PodSecurity. "
                     f"Run `kubectl label namespace {namespace} "
                     f"pod-security.kubernetes.io/enforce=privileged "
                     f"--overwrite` manually. Cause: {e}"
