@@ -15,7 +15,8 @@ import from jaclang.scale.deploy.target.kubernetes.shared_observability {
 
 obj MonitoringDeployer {
     has k8s_config: KubernetesConfig,
-        logger: (Logger | None) = None;
+        logger: (Logger | None) = None,
+        rbac_api: any = None;
 
     def ensure_service(core_v1: any, name: str, namespace: str, body: dict) {
         try {
@@ -62,7 +63,7 @@ obj MonitoringDeployer {
         }
 
         prometheus_url = SharedObservability(
-            self.k8s_config, self.logger
+            self.k8s_config, self.logger, self.rbac_api
         ).prometheus_url();
         loki_name = f"{app_name}-loki";
         loki_url = f"http://{loki_name}-service:3100";
@@ -1091,7 +1092,7 @@ obj MonitoringDeployer {
             self._deploy_tempo(app_name, namespace, apps_v1, core_v1);
         }
         if want_metrics or want_logs {
-            shared = SharedObservability(self.k8s_config, self.logger);
+            shared = SharedObservability(self.k8s_config, self.logger, self.rbac_api);
             shared.register_app(
                 app_name,
                 namespace,
@@ -1111,7 +1112,7 @@ obj MonitoringDeployer {
         loki_name = f"{app_name}-loki";
         tempo_name = f"{app_name}-tempo";
 
-        shared = SharedObservability(self.k8s_config, self.logger);
+        shared = SharedObservability(self.k8s_config, self.logger, self.rbac_api);
         shared.unregister_app(app_name, namespace, core_v1);
 
         delete_if_exists(

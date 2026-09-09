@@ -37,7 +37,14 @@ def river_ident(app_name: str, app_namespace: str) -> str {
 
 obj SharedObservability {
     has k8s_config: KubernetesConfig,
-        logger: (Logger | None) = None;
+        logger: (Logger | None) = None,
+        rbac_api: any = None;
+
+    def _rbac -> any {
+        return self.rbac_api
+            if self.rbac_api is not None
+            else client.RbacAuthorizationV1Api();
+    }
 
     def namespace -> str {
         configured = str(getattr(self.k8s_config, 'observability_namespace', '') or '');
@@ -92,7 +99,7 @@ obj SharedObservability {
     }
 
     def _ensure_cluster_role(name: str, rules: list[dict[str, any]], sa_name: str) {
-        rbac_v1 = client.RbacAuthorizationV1Api();
+        rbac_v1 = self._rbac();
         role = {
             'apiVersion': 'rbac.authorization.k8s.io/v1',
             'kind': 'ClusterRole',

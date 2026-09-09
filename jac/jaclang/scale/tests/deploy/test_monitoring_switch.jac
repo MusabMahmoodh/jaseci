@@ -11,6 +11,9 @@ import from jaclang.scale.deploy.target.kubernetes.kubernetes_config {
     KubernetesConfig
 }
 import from jaclang.scale.deploy.target.kubernetes.target { KubernetesTarget }
+import from jaclang.scale.deploy.target.kubernetes.monitoring { MonitoringDeployer }
+import from jaclang.scale.deploy.target.kubernetes.cluster_provider { LocalProvider }
+import from jaclang.scale._optdeps.kubernetes { ApiException }
 import from jaclang.scale.deploy.target.kubernetes.shared_observability {
     SharedObservability,
     lane_key,
@@ -170,4 +173,128 @@ test "the observability namespace is configurable but defaults to one place" {
         )
     );
     assert pinned.namespace() == "obs";
+}
+
+
+obj Stored {
+    """What a read returns: enough of a k8s object for the deployer's getattr."""
+    has data: dict[str, any] = {},
+        metadata: dict[str, any] = {};
+}
+
+
+obj ApiRecorder {
+    """Boundary stub for the kubernetes client. Records what the deployer
+    creates and, like a real API server, returns it on later reads so
+    create-if-absent paths are exercised once, not once per caller."""
+    has created: list[dict[str, any]] = [],
+        store: dict[str, dict[str, any]] = {};
+
+    def __getattr__(name: str) -> any {
+        created = self.created;
+        store = self.store;
+        if name.startswith("read_") {
+            def _read(**kw: any) -> any {
+                key = f"{kw.get('namespace', '')}/{kw.get('name', '')}";
+                if key in store {
+                    body = store[key];
+                    return Stored(
+                        data=dict(body.get("data", {}) or {}),
+                        metadata=dict(body.get("metadata", {}) or {})
+                    );
+                }
+                raise ApiException(status=404, reason="Not Found");
+            }
+            return _read;
+        }
+        def _write(**kw: any) -> any {
+            body = kw.get("body");
+            if isinstance(body, dict) {
+                created.append(body);
+                meta = dict(body.get("metadata", {}) or {});
+                key = f"{meta.get('namespace', '')}/{meta.get('name', '')}";
+                store[key] = body;
+            }
+            return None;
+        }
+        return _write;
+    }
+}
+
+
+def _kinds_in(recorder: ApiRecorder, kind: str, namespace: str = "") -> list[str] {
+    out: list[str] = [];
+    for body in recorder.created {
+        if body.get("kind") != kind {
+            continue;
+        }
+        meta = dict(body.get("metadata", {}) or {});
+        if namespace and str(meta.get("namespace", "")) != namespace {
+            continue;
+        }
+        out.append(str(meta.get("name", "")));
+    }
+    return out;
+}
+
+
+test "an app deploy puts no DaemonSet in the app's own namespace" {
+    # jac#9058's acceptance criterion: node-level agents must cost O(nodes),
+    # not O(nodes x apps). With logs on, the old path stamped out both a
+    # node-exporter and an Alloy DaemonSet per app namespace.
+    cfg = KubernetesConfig(
+        app_name="dev-flowline",
+        namespace="jb-299afd1f-dev-flowline",
+        monitoring_enabled=True,
+        loki_enabled=True
+    );
+    apps = ApiRecorder();
+    core = ApiRecorder();
+    MonitoringDeployer(cfg, rbac_api=core).deploy(
+        "dev-flowline",
+        "jb-299afd1f-dev-flowline",
+        apps,
+        core,
+        LocalProvider(),
+        scrape_target_service="dev-flowline-service"
+    );
+    assert _kinds_in(apps, "DaemonSet", "jb-299afd1f-dev-flowline") == [];
+
+    # They exist once, in the shared namespace, whatever the app count.
+    shared_ds = sorted(_kinds_in(apps, "DaemonSet", "jac-observability"));
+    assert shared_ds == ["jac-alloy", "jac-node-exporter"];
+}
+
+
+test "a second app adds lanes, not another collector" {
+    # The multiplicity that jac#9058 measures: deploying app two must not
+    # create a second copy of anything node-level.
+    apps = ApiRecorder();
+    core = ApiRecorder();
+    for (app, ns) in [("alpha", "ns-alpha"), ("beta", "ns-beta")] {
+        cfg = KubernetesConfig(
+            app_name=app, namespace=ns, monitoring_enabled=True, loki_enabled=True
+        );
+        MonitoringDeployer(cfg, rbac_api=core).deploy(
+            app, ns, apps, core, LocalProvider(), scrape_target_service=f"{app}-service"
+        );
+    }
+    for name in ["jac-node-exporter", "jac-alloy"] {
+        assert _kinds_in(apps, "DaemonSet").count(name) == 1;
+    }
+    for name in ["jac-prometheus", "jac-kube-state-metrics"] {
+        assert _kinds_in(apps, "Deployment").count(name) == 1;
+    }
+    # The cluster ends up with one ClusterRole per collector, whatever the app
+    # count. Re-deploying an app replaces its content rather than adding another
+    # object, so the distinct set is what matters, not the write count.
+    roles = set(_kinds_in(core, "ClusterRole"));
+    assert roles == {"jac-prometheus", "jac-kube-state-metrics", "jac-alloy"};
+    # None of them is named after an app or a namespace, which is what made
+    # them multiply before (jac#9058).
+    for role in roles {
+        for owner in ["alpha", "beta", "ns-alpha", "ns-beta"] {
+            assert owner not in role;
+        }
+    }
 }
