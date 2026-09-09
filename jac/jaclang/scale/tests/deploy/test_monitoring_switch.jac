@@ -204,7 +204,7 @@ obj ApiRecorder {
         created = self.created;
         store = self.store;
         if name.startswith("read_") {
-            def _read(**kw: any) -> any {
+            def _read(*a: any, **kw: any) -> any {
                 key = f"{kw.get('namespace', '')}/{kw.get('name', '')}";
                 if key in store {
                     body = store[key];
@@ -223,7 +223,7 @@ obj ApiRecorder {
             }
             return _read;
         }
-        def _write(**kw: any) -> any {
+        def _write(*a: any, **kw: any) -> any {
             body = kw.get("body");
             if isinstance(body, dict) {
                 created.append(body);
@@ -245,7 +245,7 @@ obj ConflictOnceRecorder(ApiRecorder) {
 
     def __getattr__(name: str) -> any {
         if name.startswith("replace_") and self.conflicts == 0 {
-            def _conflict(**kw: any) -> any {
+            def _conflict(*a: any, **kw: any) -> any {
                 self.conflicts += 1;
                 raise ApiException(status=409, reason="Conflict");
             }
@@ -408,4 +408,21 @@ test "a lane write that loses a race retries against the winner" {
     assert core.conflicts == 1;
     assert lanes["ns-beta__beta"] == "beta-lane";
     assert lanes[lane_key("alpha", "ns-alpha")] == "alpha-lane";
+}
+
+
+test "destroying an app that never had observability writes nothing" {
+    # destroy() runs for every app. On a cluster with no shared tier the
+    # observability namespace does not exist, so writing a rendered config
+    # would 404, and the raise blocked namespace reclamation (#7968).
+    cfg = KubernetesConfig(app_name="alpha", namespace="ns-alpha");
+    apps = ApiRecorder();
+    core = ApiRecorder();
+    MonitoringDeployer(cfg, rbac_api=core).destroy("alpha", "ns-alpha", apps, core);
+    for body in core.created {
+        meta = dict(body.get("metadata", {}) or {});
+        assert str(meta.get("namespace", "")) != "jac-observability" , (
+            f"destroy wrote {meta.get('name')} into the shared namespace"
+        );
+    }
 }

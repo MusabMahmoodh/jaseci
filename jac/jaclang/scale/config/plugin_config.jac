@@ -673,6 +673,11 @@ class JacScalePluginConfig {
                             "default": False,
                             "description": "Allow mutating operations from the ops console"
                         },
+                        "observability_namespace": {
+                            "type": "string",
+                            "default": "jac-observability",
+                            "description": "Namespace holding the cluster's shared observability collectors (Prometheus, kube-state-metrics, node-exporter, Alloy). One tier serves every app on the cluster; all apps on a cluster must agree on this value."
+                        },
                         "kube_context": {
                             "type": "string",
                             "default": "",

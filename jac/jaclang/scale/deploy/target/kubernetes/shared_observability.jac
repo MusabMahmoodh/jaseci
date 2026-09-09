@@ -1164,24 +1164,29 @@ obj SharedObservability {
 
     def unregister_app(app_name: str, app_namespace: str, core_v1: any) {
         key = lane_key(app_name, app_namespace);
-        prom_lanes = self._put_lane(core_v1, PROMETHEUS_LANES_CM, key, None);
-        self._put_config_map(
-            core_v1,
-            f"{PROMETHEUS_NAME}-config",
-            {
-                'prometheus.yml': self._render_prometheus_config(
-                    prom_lanes, self._node_level_wanted(core_v1)
-                )
-            }
-        );
+
+        if key in self._read_lanes(core_v1, PROMETHEUS_LANES_CM) {
+            prom_lanes = self._put_lane(core_v1, PROMETHEUS_LANES_CM, key, None);
+            self._put_config_map(
+                core_v1,
+                f"{PROMETHEUS_NAME}-config",
+                {
+                    'prometheus.yml': self._render_prometheus_config(
+                        prom_lanes, self._node_level_wanted(core_v1)
+                    )
+                }
+            );
+        }
         self._drop_scrape_password(core_v1, key);
 
-        alloy_lanes = self._put_lane(core_v1, ALLOY_LANES_CM, key, None);
-        self._put_config_map(
-            core_v1,
-            f"{ALLOY_NAME}-config",
-            {'config.alloy': self._render_alloy_config(alloy_lanes)}
-        );
+        if key in self._read_lanes(core_v1, ALLOY_LANES_CM) {
+            alloy_lanes = self._put_lane(core_v1, ALLOY_LANES_CM, key, None);
+            self._put_config_map(
+                core_v1,
+                f"{ALLOY_NAME}-config",
+                {'config.alloy': self._render_alloy_config(alloy_lanes)}
+            );
+        }
         self._log(f"Unregistered '{app_name}' from the shared observability tier");
     }
 
