@@ -6,8 +6,13 @@ import from jaclang.scale.deploy.target.kubernetes.kubernetes_config {
     k8s_safe_slug
 }
 import from jaclang.scale.observability.logger { Logger }
+import from jaclang.scale.deploy.target.kubernetes.utils.kubernetes_utils {
+    privileged_pss_labels
+}
 
-glob SHARED_OBS_NAMESPACE: str = 'jac-observability',
+glob PSS_ENFORCE: str = 'pod-security.kubernetes.io/enforce',
+     LANE_WRITE_ATTEMPTS: int = 5,
+     SHARED_OBS_NAMESPACE: str = 'jac-observability',
      NODE_EXPORTER_NAME: str = 'jac-node-exporter',
      KSM_NAME: str = 'jac-kube-state-metrics',
      PROMETHEUS_NAME: str = 'jac-prometheus',
@@ -51,6 +56,10 @@ obj SharedObservability {
         return configured or SHARED_OBS_NAMESPACE;
     }
 
+    def cluster_scoped_name(component: str) -> str {
+        return f"{self.namespace()}-{component}";
+    }
+
     def _log(message: str) {
         if self.logger {
             self.logger.info(message);
@@ -64,19 +73,40 @@ obj SharedObservability {
             'kind': 'Namespace',
             'metadata': {
                 'name': ns,
-                'labels': dict(SHARED_LABELS)
-                    | {'pod-security.kubernetes.io/enforce': 'privileged'}
+                'labels': dict(SHARED_LABELS) | {PSS_ENFORCE: 'privileged'}
             }
         };
         try {
-            core_v1.read_namespace(name=ns);
+            found = core_v1.read_namespace(name=ns);
         } except ApiException as e {
-            if e.status == 404 {
-                core_v1.create_namespace(body=body);
-                self._log(f"Created shared observability namespace '{ns}'");
-            } else {
+            if e.status != 404 {
                 raise;
             }
+            core_v1.create_namespace(body=body);
+            self._log(f"Created shared observability namespace '{ns}'");
+            return;
+        }
+
+        meta = found?.metadata;
+        labels = dict(getattr(meta, 'labels', {}) or {}) if meta else {};
+        patch_labels = privileged_pss_labels(labels);
+        if patch_labels is None {
+            self._log(
+                f"namespace '{ns}' enforces a pod-security policy set outside "
+                f"jac-scale; the node-level DaemonSets may be rejected"
+            );
+            return;
+        }
+        if not patch_labels {
+            return;
+        }
+        try {
+            core_v1.patch_namespace(
+                name=ns, body={'metadata': {'labels': patch_labels}}
+            );
+            self._log(f"Labeled '{ns}' pod-security enforce=privileged");
+        } except ApiException {
+            self._log(f"Could not label '{ns}' privileged");
         }
     }
 
@@ -195,42 +225,87 @@ obj SharedObservability {
     }
 
     def _read_lanes(core_v1: any, cm_name: str) -> dict[str, str] {
+        (data, rv) = self._read_lanes_versioned(core_v1, cm_name);
+        return data;
+    }
+
+    def _read_lanes_versioned(
+        core_v1: any, cm_name: str
+    ) -> tuple[dict[str, str], str] {
         ns = self.namespace();
         try {
             existing = core_v1.read_namespaced_config_map(name=cm_name, namespace=ns);
-            return dict(getattr(existing, 'data', {}) or {});
+            meta = existing?.metadata;
+            rv = str(getattr(meta, 'resource_version', '') or '') if meta else '';
+            return (dict(getattr(existing, 'data', {}) or {}), rv);
         } except ApiException as e {
             if e.status == 404 {
-                return {};
+                return ({}, '');
             }
             raise;
         }
     }
 
-    def _write_lanes(core_v1: any, cm_name: str, data: dict[str, str]) {
+    def _put_lane(
+        core_v1: any, cm_name: str, key: str, value: (str | None)
+    ) -> dict[str, str] {
+        attempt = 0;
+        while attempt < LANE_WRITE_ATTEMPTS {
+            attempt += 1;
+            (lanes, rv) = self._read_lanes_versioned(core_v1, cm_name);
+            if value is None {
+                if key not in lanes {
+                    return lanes;
+                }
+                lanes.pop(key, None);
+            } else {
+                if lanes.get(key) == value {
+                    return lanes;
+                }
+                lanes[key] = value;
+            }
+            try {
+                self._write_lanes(core_v1, cm_name, lanes, rv);
+                return lanes;
+            } except ApiException as e {
+                if e.status != 409 or attempt >= LANE_WRITE_ATTEMPTS {
+                    raise;
+                }
+            }
+        }
+        return self._read_lanes(core_v1, cm_name);
+    }
+
+    def _write_lanes(
+        core_v1: any, cm_name: str, data: dict[str, str], resource_version: str = ''
+    ) {
         ns = self.namespace();
+        meta: dict[str, any] = {
+            'name': cm_name,
+            'namespace': ns,
+            'labels': dict(SHARED_LABELS)
+        };
+        if resource_version {
+            meta['resourceVersion'] = resource_version;
+        }
         body = {
             'apiVersion': 'v1',
             'kind': 'ConfigMap',
-            'metadata': {
-                'name': cm_name,
-                'namespace': ns,
-                'labels': dict(SHARED_LABELS)
-            },
+            'metadata': meta,
             'data': data
         };
-        try {
-            core_v1.read_namespaced_config_map(name=cm_name, namespace=ns);
-            core_v1.replace_namespaced_config_map(
-                name=cm_name, namespace=ns, body=body
-            );
-        } except ApiException as e {
-            if e.status == 404 {
+        if not resource_version {
+            try {
                 core_v1.create_namespaced_config_map(namespace=ns, body=body);
-            } else {
-                raise;
+                return;
+            } except ApiException as e {
+                if e.status != 409 {
+                    raise;
+                }
+                return;
             }
         }
+        core_v1.replace_namespaced_config_map(name=cm_name, namespace=ns, body=body);
     }
 
     def _node_exporter_daemonset -> dict[str, any] {
@@ -563,7 +638,24 @@ obj SharedObservability {
         };
     }
 
-    def _prometheus_base_config -> str {
+    def _node_level_wanted(core_v1: any) -> bool {
+        if self.k8s_config.k8s_metrics_enabled {
+            return True;
+        }
+        try {
+            core_v1.read_namespaced_service(
+                name=f"{KSM_NAME}-service", namespace=self.namespace()
+            );
+            return True;
+        } except ApiException as e {
+            if e.status == 404 {
+                return False;
+            }
+            raise;
+        }
+    }
+
+    def _prometheus_base_config(node_level: bool = True) -> str {
         ns = self.namespace();
         ne_svc = f"{NODE_EXPORTER_NAME}-service";
         ksm_svc = f"{KSM_NAME}-service";
@@ -571,6 +663,9 @@ obj SharedObservability {
         cfg = cfg + "  scrape_interval: 15s\n";
         cfg = cfg + "  evaluation_interval: 15s\n";
         cfg = cfg + "scrape_configs:\n";
+        if not node_level {
+            return cfg;
+        }
         cfg = cfg + "  - job_name: 'node-exporter'\n";
         cfg = cfg + "    kubernetes_sd_configs:\n";
         cfg = cfg + "      - role: endpoints\n";
@@ -639,8 +734,10 @@ obj SharedObservability {
         return lane;
     }
 
-    def _render_prometheus_config(lanes: dict[str, str]) -> str {
-        cfg = self._prometheus_base_config();
+    def _render_prometheus_config(
+        lanes: dict[str, str], node_level: bool = True
+    ) -> str {
+        cfg = self._prometheus_base_config(node_level);
         for key in sorted(lanes.keys()) {
             cfg = cfg + lanes[key];
         }
@@ -843,7 +940,7 @@ obj SharedObservability {
         sa_name = f"{KSM_NAME}-sa";
         self._ensure_service_account(core_v1, sa_name);
         self._ensure_cluster_role(
-            KSM_NAME,
+            self.cluster_scoped_name('kube-state-metrics'),
             [
                 {
                     'apiGroups': [''],
@@ -927,7 +1024,7 @@ obj SharedObservability {
         sa_name = f"{PROMETHEUS_NAME}-sa";
         self._ensure_service_account(core_v1, sa_name);
         self._ensure_cluster_role(
-            PROMETHEUS_NAME,
+            self.cluster_scoped_name('prometheus'),
             [
                 {
                     'apiGroups': [''],
@@ -946,7 +1043,9 @@ obj SharedObservability {
             sa_name
         );
         lanes = self._read_lanes(core_v1, PROMETHEUS_LANES_CM);
-        rendered = self._render_prometheus_config(lanes);
+        rendered = self._render_prometheus_config(
+            lanes, self._node_level_wanted(core_v1)
+        );
         self._put_config_map(
             core_v1, f"{PROMETHEUS_NAME}-config", {'prometheus.yml': rendered}
         );
@@ -966,7 +1065,7 @@ obj SharedObservability {
         sa_name = f"{ALLOY_NAME}-sa";
         self._ensure_service_account(core_v1, sa_name);
         self._ensure_cluster_role(
-            ALLOY_NAME,
+            self.cluster_scoped_name('alloy'),
             [
                 {
                     'apiGroups': [''],
@@ -1000,8 +1099,10 @@ obj SharedObservability {
 
     def ensure_metrics_tier(apps_v1: any, core_v1: any) {
         self._ensure_namespace(core_v1);
-        self._ensure_node_exporter(apps_v1, core_v1);
-        self._ensure_kube_state_metrics(apps_v1, core_v1);
+        if self.k8s_config.k8s_metrics_enabled {
+            self._ensure_node_exporter(apps_v1, core_v1);
+            self._ensure_kube_state_metrics(apps_v1, core_v1);
+        }
         self._ensure_prometheus(apps_v1, core_v1);
     }
 
@@ -1026,24 +1127,31 @@ obj SharedObservability {
             self._upsert_scrape_password(
                 core_v1, key, self.k8s_config.prometheus_admin_password
             );
-            lanes = self._read_lanes(core_v1, PROMETHEUS_LANES_CM);
-            lanes[key] = self.prometheus_lane(
-                app_name, app_namespace, scrape_target, service_port
+            lanes = self._put_lane(
+                core_v1,
+                PROMETHEUS_LANES_CM,
+                key,
+                self.prometheus_lane(
+                    app_name, app_namespace, scrape_target, service_port
+                )
             );
-            self._write_lanes(core_v1, PROMETHEUS_LANES_CM, lanes);
             self.ensure_metrics_tier(apps_v1, core_v1);
             self._put_config_map(
                 core_v1,
                 f"{PROMETHEUS_NAME}-config",
-                {'prometheus.yml': self._render_prometheus_config(lanes)}
+                {
+                    'prometheus.yml': self._render_prometheus_config(
+                        lanes, self._node_level_wanted(core_v1)
+                    )
+                }
             );
             self._log(f"Registered '{app_name}' with the shared Prometheus");
         }
         if want_logs {
             self._ensure_namespace(core_v1);
-            lanes = self._read_lanes(core_v1, ALLOY_LANES_CM);
-            lanes[key] = self.alloy_lane(app_name, app_namespace);
-            self._write_lanes(core_v1, ALLOY_LANES_CM, lanes);
+            lanes = self._put_lane(
+                core_v1, ALLOY_LANES_CM, key, self.alloy_lane(app_name, app_namespace)
+            );
             self.ensure_logs_tier(apps_v1, core_v1);
             self._put_config_map(
                 core_v1,
@@ -1056,28 +1164,24 @@ obj SharedObservability {
 
     def unregister_app(app_name: str, app_namespace: str, core_v1: any) {
         key = lane_key(app_name, app_namespace);
-        prom_lanes = self._read_lanes(core_v1, PROMETHEUS_LANES_CM);
-        if key in prom_lanes {
-            prom_lanes.pop(key, None);
-            self._write_lanes(core_v1, PROMETHEUS_LANES_CM, prom_lanes);
-            self._put_config_map(
-                core_v1,
-                f"{PROMETHEUS_NAME}-config",
-                {'prometheus.yml': self._render_prometheus_config(prom_lanes)}
-            );
-        }
+        prom_lanes = self._put_lane(core_v1, PROMETHEUS_LANES_CM, key, None);
+        self._put_config_map(
+            core_v1,
+            f"{PROMETHEUS_NAME}-config",
+            {
+                'prometheus.yml': self._render_prometheus_config(
+                    prom_lanes, self._node_level_wanted(core_v1)
+                )
+            }
+        );
         self._drop_scrape_password(core_v1, key);
 
-        alloy_lanes = self._read_lanes(core_v1, ALLOY_LANES_CM);
-        if key in alloy_lanes {
-            alloy_lanes.pop(key, None);
-            self._write_lanes(core_v1, ALLOY_LANES_CM, alloy_lanes);
-            self._put_config_map(
-                core_v1,
-                f"{ALLOY_NAME}-config",
-                {'config.alloy': self._render_alloy_config(alloy_lanes)}
-            );
-        }
+        alloy_lanes = self._put_lane(core_v1, ALLOY_LANES_CM, key, None);
+        self._put_config_map(
+            core_v1,
+            f"{ALLOY_NAME}-config",
+            {'config.alloy': self._render_alloy_config(alloy_lanes)}
+        );
         self._log(f"Unregistered '{app_name}' from the shared observability tier");
     }
 

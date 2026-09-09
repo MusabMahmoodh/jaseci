@@ -20,7 +20,8 @@ import from jaclang.scale.deploy.target.kubernetes.shared_observability {
     NODE_EXPORTER_NAME,
     KSM_NAME,
     PROMETHEUS_NAME,
-    ALLOY_NAME
+    ALLOY_NAME,
+    PROMETHEUS_LANES_CM
 }
 
 
@@ -176,10 +177,19 @@ test "the observability namespace is configurable but defaults to one place" {
 }
 
 
+obj StoredMeta {
+    """The metadata attributes the deployer reads off a k8s object."""
+    has name: str = "",
+        namespace: str = "",
+        resource_version: str = "",
+        labels: dict[str, str] = {};
+}
+
+
 obj Stored {
     """What a read returns: enough of a k8s object for the deployer's getattr."""
     has data: dict[str, any] = {},
-        metadata: dict[str, any] = {};
+        metadata: StoredMeta = StoredMeta();
 }
 
 
@@ -198,9 +208,15 @@ obj ApiRecorder {
                 key = f"{kw.get('namespace', '')}/{kw.get('name', '')}";
                 if key in store {
                     body = store[key];
+                    m = dict(body.get("metadata", {}) or {});
                     return Stored(
                         data=dict(body.get("data", {}) or {}),
-                        metadata=dict(body.get("metadata", {}) or {})
+                        metadata=StoredMeta(
+                            name=str(m.get("name", "")),
+                            namespace=str(m.get("namespace", "")),
+                            resource_version=str(m.get("resourceVersion", "1")),
+                            labels=dict(m.get("labels", {}) or {})
+                        )
                     );
                 }
                 raise ApiException(status=404, reason="Not Found");
@@ -218,6 +234,24 @@ obj ApiRecorder {
             return None;
         }
         return _write;
+    }
+}
+
+
+obj ConflictOnceRecorder(ApiRecorder) {
+    """Rejects the first replace with 409, the way the API server does when
+    another writer got there first."""
+    has conflicts: int = 0;
+
+    def __getattr__(name: str) -> any {
+        if name.startswith("replace_") and self.conflicts == 0 {
+            def _conflict(**kw: any) -> any {
+                self.conflicts += 1;
+                raise ApiException(status=409, reason="Conflict");
+            }
+            return _conflict;
+        }
+        return super.__getattr__(name);
     }
 }
 
@@ -289,7 +323,12 @@ test "a second app adds lanes, not another collector" {
     # count. Re-deploying an app replaces its content rather than adding another
     # object, so the distinct set is what matters, not the write count.
     roles = set(_kinds_in(core, "ClusterRole"));
-    assert roles == {"jac-prometheus", "jac-kube-state-metrics", "jac-alloy"};
+    assert roles
+        == {
+            "jac-observability-prometheus",
+            "jac-observability-kube-state-metrics",
+            "jac-observability-alloy"
+        };
     # None of them is named after an app or a namespace, which is what made
     # them multiply before (jac#9058).
     for role in roles {
@@ -297,4 +336,76 @@ test "a second app adds lanes, not another collector" {
             assert owner not in role;
         }
     }
+}
+
+
+test "opting out of k8s metrics leaves the node-level collectors undeployed" {
+    # k8s_metrics_enabled gated node-exporter and kube-state-metrics before the
+    # shared tier; a deploy that opts out must not get them cluster-wide either.
+    cfg = KubernetesConfig(
+        app_name="alpha",
+        namespace="ns-alpha",
+        monitoring_enabled=True,
+        k8s_metrics_enabled=False
+    );
+    apps = ApiRecorder();
+    core = ApiRecorder();
+    MonitoringDeployer(cfg, rbac_api=core).deploy(
+        "alpha",
+        "ns-alpha",
+        apps,
+        core,
+        LocalProvider(),
+        scrape_target_service="alpha-service"
+    );
+    assert _kinds_in(apps, "DaemonSet") == [];
+    assert "jac-kube-state-metrics" not in _kinds_in(apps, "Deployment");
+    assert "jac-prometheus" in _kinds_in(apps, "Deployment");
+
+    # ... and its Prometheus is not configured to scrape them either.
+    shared = _shared("alpha", "ns-alpha");
+    lean = shared._render_prometheus_config({}, False);
+    for job in ["node-exporter", "kube-state-metrics", "kubernetes-cadvisor"] {
+        assert job not in lean;
+    }
+    assert "scrape_configs:" in lean;
+}
+
+
+test "cluster-scoped identities are named after the observability namespace" {
+    # Two clusters' worth of config in one cluster: fixed names would let the
+    # second namespace rewrite the first one's binding subject.
+    a = _shared("alpha", "ns-alpha");
+    b = SharedObservability(
+        k8s_config=KubernetesConfig(
+            app_name="beta", namespace="ns-beta", observability_namespace="obs-two"
+        )
+    );
+    for component in ["prometheus", "kube-state-metrics", "alloy"] {
+        assert a.cluster_scoped_name(component) != b.cluster_scoped_name(component);
+        assert a.cluster_scoped_name(component).startswith("jac-observability-");
+        assert b.cluster_scoped_name(component).startswith("obs-two-");
+    }
+}
+
+
+test "a lane write that loses a race retries against the winner" {
+    # Two deploys read the same ConfigMap; the loser must not drop the lane the
+    # winner just added.
+    shared = _shared("alpha", "ns-alpha");
+    core = ConflictOnceRecorder();
+    core.store["jac-observability/jac-prometheus-lanes"] = {
+        "metadata": {
+            "name": "jac-prometheus-lanes",
+            "namespace": "jac-observability",
+            "resourceVersion": "1"
+        },
+        "data": {"ns-beta__beta": "beta-lane"}
+    };
+    lanes = shared._put_lane(
+        core, PROMETHEUS_LANES_CM, lane_key("alpha", "ns-alpha"), "alpha-lane"
+    );
+    assert core.conflicts == 1;
+    assert lanes["ns-beta__beta"] == "beta-lane";
+    assert lanes[lane_key("alpha", "ns-alpha")] == "alpha-lane";
 }
