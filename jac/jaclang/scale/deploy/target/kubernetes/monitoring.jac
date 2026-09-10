@@ -1,5 +1,5 @@
 import re;
-import from jaclang.scale._optdeps.kubernetes { ApiException }
+import from jaclang.scale._optdeps.kubernetes { client, ApiException }
 import from jaclang.scale.deploy.target.kubernetes.kubernetes_config {
     KubernetesConfig
 }
@@ -1107,6 +1107,83 @@ obj MonitoringDeployer {
         }
     }
 
+    def _sweep_legacy_collectors(
+        app_name: str, namespace: str, apps_v1: any, core_v1: any
+    ) {
+        prometheus_name = f"{app_name}-prometheus";
+        ksm_name = f"{app_name}-kube-state-metrics";
+        ne_name = f"{app_name}-node-exporter";
+        alloy_name = f"{app_name}-alloy";
+
+        for ds_name in [ne_name, alloy_name] {
+            try {
+                apps_v1.delete_namespaced_daemon_set(name=ds_name, namespace=namespace);
+            } except ApiException as e {
+                if e.status != 404 {
+                    raise;
+                }
+            }
+        }
+        for dep_name in [prometheus_name, ksm_name] {
+            delete_if_exists(
+                apps_v1.delete_namespaced_deployment, dep_name, namespace, 'Deployment'
+            );
+        }
+        for svc in [
+            f"{prometheus_name}-service",
+            f"{ksm_name}-service",
+            f"{ne_name}-service",
+            f"{alloy_name}-service"
+        ] {
+            delete_if_exists(
+                core_v1.delete_namespaced_service, svc, namespace, 'Service'
+            );
+        }
+        for cm_name in [f"{prometheus_name}-config", f"{alloy_name}-config"] {
+            try {
+                core_v1.delete_namespaced_config_map(name=cm_name, namespace=namespace);
+            } except ApiException as e {
+                if e.status != 404 {
+                    raise;
+                }
+            }
+        }
+        delete_k8s_secret(core_v1, namespace, f"{prometheus_name}-scrape-secret");
+        for sa_name in [
+            f"{prometheus_name}-sa",
+            f"{ksm_name}-sa",
+            f"{alloy_name}-sa"
+        ] {
+            delete_if_exists(
+                core_v1.delete_namespaced_service_account,
+                sa_name,
+                namespace,
+                'ServiceAccount'
+            );
+        }
+        rbac_v1 = self.rbac_api
+            if self.rbac_api is not None
+            else client.RbacAuthorizationV1Api();
+        for cluster_name in [
+            f"{namespace}-{prometheus_name}",
+            f"{namespace}-{ksm_name}",
+            f"{namespace}-{alloy_name}"
+        ] {
+            for remove_fn in [
+                rbac_v1.delete_cluster_role,
+                rbac_v1.delete_cluster_role_binding
+            ] {
+                try {
+                    remove_fn(name=cluster_name);
+                } except ApiException as e {
+                    if e.status != 404 {
+                        raise;
+                    }
+                }
+            }
+        }
+    }
+
     def destroy(app_name: str, namespace: str, apps_v1: any, core_v1: any) {
         grafana_name = f"{app_name}-grafana";
         loki_name = f"{app_name}-loki";
@@ -1114,6 +1191,7 @@ obj MonitoringDeployer {
 
         shared = SharedObservability(self.k8s_config, self.logger, self.rbac_api);
         shared.unregister_app(app_name, namespace, core_v1);
+        self._sweep_legacy_collectors(app_name, namespace, apps_v1, core_v1);
 
         delete_if_exists(
             apps_v1.delete_namespaced_deployment, loki_name, namespace, 'Deployment'

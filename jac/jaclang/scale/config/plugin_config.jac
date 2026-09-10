@@ -1062,7 +1062,7 @@ class JacScalePluginConfig {
                 "monitoring": {
                     "type": "dict",
                     "default": {},
-                    "description": "Monitoring configuration for the HTTP /metrics endpoint and Kubernetes Prometheus + Grafana stack",
+                    "description": "Monitoring configuration for the HTTP /metrics endpoint and Kubernetes Prometheus + Grafana stack. MULTI-TENANT WARNING: on Kubernetes one Prometheus serves every app on the cluster, and it has no authentication in front of it. Each app's dashboards stay scoped because metric names are namespace-derived, but anyone who can reach an app's Grafana can query another app's series from Explore. Do not enable this for untrusted or mutually untrusting tenants without putting auth or a NetworkPolicy in front of the shared Prometheus.",
                     "nested": {
                         "enabled": {
                             "type": "bool",

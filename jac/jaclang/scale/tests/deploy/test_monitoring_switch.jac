@@ -194,15 +194,19 @@ obj Stored {
 
 
 obj ApiRecorder {
-    """Boundary stub for the kubernetes client. Records what the deployer
-    creates and, like a real API server, returns it on later reads so
-    create-if-absent paths are exercised once, not once per caller."""
+    """Boundary stub for the kubernetes client, answering the way the API
+    server does: reads return what exists, create on an existing name is 409,
+    replace on a missing name is 404, and every write bumps resourceVersion.
+    A permissive stub here let create silently overwrite, which is what hid a
+    swallowed 409 from the suite."""
     has created: list[dict[str, any]] = [],
-        store: dict[str, dict[str, any]] = {};
+        store: dict[str, dict[str, any]] = {},
+        deleted: list[tuple] = [];
 
     def __getattr__(name: str) -> any {
         created = self.created;
         store = self.store;
+        deleted = self.deleted;
         if name.startswith("read_") {
             def _read(*a: any, **kw: any) -> any {
                 key = f"{kw.get('namespace', '')}/{kw.get('name', '')}";
@@ -223,14 +227,42 @@ obj ApiRecorder {
             }
             return _read;
         }
+        if name.startswith("delete_") {
+            def _delete(*a: any, **kw: any) -> any {
+                n = kw.get("name", a[0] if a else "");
+                ns = kw.get("namespace", a[1] if len(a) > 1 else "");
+                deleted.append((name, str(n), str(ns)));
+                store.pop(f"{ns}/{n}", None);
+                return None;
+            }
+            return _delete;
+        }
         def _write(*a: any, **kw: any) -> any {
             body = kw.get("body");
-            if isinstance(body, dict) {
-                created.append(body);
-                meta = dict(body.get("metadata", {}) or {});
-                key = f"{meta.get('namespace', '')}/{meta.get('name', '')}";
-                store[key] = body;
+            if not isinstance(body, dict) {
+                return None;
             }
+            meta = dict(body.get("metadata", {}) or {});
+            key = f"{meta.get('namespace', '')}/{meta.get('name', '')}";
+            if name.startswith("create_") and key in store {
+                raise ApiException(status=409, reason="AlreadyExists");
+            }
+            if name.startswith("replace_") and key not in store {
+                raise ApiException(status=404, reason="Not Found");
+            }
+            bump = int(
+                str(
+                    dict(store.get(key, {}).get("metadata", {}) or {}).get(
+                        "resourceVersion", "0"
+                    )
+                )
+                    or "0"
+            )
+                + 1;
+            meta["resourceVersion"] = str(bump);
+            body["metadata"] = meta;
+            created.append(body);
+            store[key] = body;
             return None;
         }
         return _write;
@@ -313,12 +345,13 @@ test "a second app adds lanes, not another collector" {
             app, ns, apps, core, LocalProvider(), scrape_target_service=f"{app}-service"
         );
     }
-    for name in ["jac-node-exporter", "jac-alloy"] {
-        assert _kinds_in(apps, "DaemonSet").count(name) == 1;
-    }
-    for name in ["jac-prometheus", "jac-kube-state-metrics"] {
-        assert _kinds_in(apps, "Deployment").count(name) == 1;
-    }
+    # Count objects that exist, not writes: a second deploy re-applies the
+    # shared templates so a later release's image bump lands, which is a write
+    # against the same single object.
+    assert sorted(set(_kinds_in(apps, "DaemonSet", "jac-observability")))
+        == ["jac-alloy", "jac-node-exporter"];
+    assert sorted(set(_kinds_in(apps, "Deployment", "jac-observability")))
+        == ["jac-kube-state-metrics", "jac-prometheus"];
     # The cluster ends up with one ClusterRole per collector, whatever the app
     # count. Re-deploying an app replaces its content rather than adding another
     # object, so the distinct set is what matters, not the write count.
@@ -424,5 +457,87 @@ test "destroying an app that never had observability writes nothing" {
         assert str(meta.get("namespace", "")) != "jac-observability" , (
             f"destroy wrote {meta.get('name')} into the shared namespace"
         );
+    }
+}
+
+
+def _deploy_app(app: str, ns: str, apps: ApiRecorder, core: ApiRecorder) {
+    cfg = KubernetesConfig(
+        app_name=app, namespace=ns, monitoring_enabled=True, loki_enabled=True
+    );
+    MonitoringDeployer(cfg, rbac_api=core).deploy(
+        app, ns, apps, core, LocalProvider(), scrape_target_service=f"{app}-service"
+    );
+}
+
+
+def _rendered(core: ApiRecorder, cm: str, key: str) -> str {
+    body = core.store.get(f"jac-observability/{cm}", {});
+    return str(dict(body.get("data", {}) or {}).get(key, ""));
+}
+
+
+test "a second app's lane reaches the rendered prometheus.yml" {
+    # Registering a lane is not enough: the rendered config is what Prometheus
+    # reads, and a write that no-ops leaves the second app unscraped.
+    apps = ApiRecorder();
+    core = ApiRecorder();
+    _deploy_app("alpha", "ns-alpha", apps, core);
+    _deploy_app("beta", "ns-beta", apps, core);
+    prom = _rendered(core, "jac-prometheus-config", "prometheus.yml");
+    assert "job_name: 'ns-alpha__alpha'" in prom;
+    assert "job_name: 'ns-beta__beta'" in prom;
+}
+
+
+test "a second app's lane reaches the rendered config.alloy" {
+    apps = ApiRecorder();
+    core = ApiRecorder();
+    _deploy_app("alpha", "ns-alpha", apps, core);
+    _deploy_app("beta", "ns-beta", apps, core);
+    alloy = _rendered(core, "jac-alloy-config", "config.alloy");
+    assert "ns-alpha" in alloy;
+    assert "ns-beta" in alloy;
+}
+
+
+test "destroying an app drains its job from the rendered config" {
+    apps = ApiRecorder();
+    core = ApiRecorder();
+    _deploy_app("alpha", "ns-alpha", apps, core);
+    _deploy_app("beta", "ns-beta", apps, core);
+    cfg = KubernetesConfig(
+        app_name="alpha", namespace="ns-alpha", monitoring_enabled=True
+    );
+    MonitoringDeployer(cfg, rbac_api=core).destroy("alpha", "ns-alpha", apps, core);
+    prom = _rendered(core, "jac-prometheus-config", "prometheus.yml");
+    assert "job_name: 'ns-alpha__alpha'" not in prom;
+    assert "job_name: 'ns-beta__beta'" in prom;
+}
+
+
+test "destroy sweeps the per-app collectors an older release left behind" {
+    # The migration story is that a redeploy moves an app onto the shared tier,
+    # which only holds if destroy removes what the previous release created.
+    apps = ApiRecorder();
+    core = ApiRecorder();
+    cfg = KubernetesConfig(
+        app_name="alpha",
+        namespace="ns-alpha",
+        monitoring_enabled=True,
+        loki_enabled=True
+    );
+    MonitoringDeployer(cfg, rbac_api=core).destroy("alpha", "ns-alpha", apps, core);
+    names = [d[1] for d in apps.deleted] + [d[1] for d in core.deleted];
+    for legacy in [
+        "alpha-node-exporter",
+        "alpha-alloy",
+        "alpha-prometheus",
+        "alpha-kube-state-metrics",
+        "ns-alpha-alpha-prometheus",
+        "ns-alpha-alpha-kube-state-metrics",
+        "ns-alpha-alpha-alloy"
+    ] {
+        assert legacy in names , f"destroy never deletes legacy '{legacy}'";
     }
 }

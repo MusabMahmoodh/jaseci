@@ -199,28 +199,26 @@ obj SharedObservability {
     def _ensure_daemonset(apps_v1: any, name: str, body: dict[str, any]) {
         ns = self.namespace();
         try {
-            apps_v1.read_namespaced_daemon_set(name=name, namespace=ns);
+            apps_v1.patch_namespaced_daemon_set(name=name, namespace=ns, body=body);
         } except ApiException as e {
-            if e.status == 404 {
-                apps_v1.create_namespaced_daemon_set(namespace=ns, body=body);
-                self._log(f"Created shared DaemonSet '{name}' in '{ns}'");
-            } else {
+            if e.status != 404 {
                 raise;
             }
+            apps_v1.create_namespaced_daemon_set(namespace=ns, body=body);
+            self._log(f"Created shared DaemonSet '{name}' in '{ns}'");
         }
     }
 
     def _ensure_deployment(apps_v1: any, name: str, body: dict[str, any]) {
         ns = self.namespace();
         try {
-            apps_v1.read_namespaced_deployment(name=name, namespace=ns);
+            apps_v1.patch_namespaced_deployment(name=name, namespace=ns, body=body);
         } except ApiException as e {
-            if e.status == 404 {
-                apps_v1.create_namespaced_deployment(namespace=ns, body=body);
-                self._log(f"Created shared Deployment '{name}' in '{ns}'");
-            } else {
+            if e.status != 404 {
                 raise;
             }
+            apps_v1.create_namespaced_deployment(namespace=ns, body=body);
+            self._log(f"Created shared Deployment '{name}' in '{ns}'");
         }
     }
 
@@ -295,15 +293,8 @@ obj SharedObservability {
             'data': data
         };
         if not resource_version {
-            try {
-                core_v1.create_namespaced_config_map(namespace=ns, body=body);
-                return;
-            } except ApiException as e {
-                if e.status != 409 {
-                    raise;
-                }
-                return;
-            }
+            core_v1.create_namespaced_config_map(namespace=ns, body=body);
+            return;
         }
         core_v1.replace_namespaced_config_map(name=cm_name, namespace=ns, body=body);
     }
@@ -428,7 +419,7 @@ obj SharedObservability {
         };
     }
 
-    def _prometheus_deployment(config_hash: str) -> dict[str, any][str, any] {
+    def _prometheus_deployment(config_hash: str) -> dict[str, any] {
         labels = dict(SHARED_LABELS) | {'app': PROMETHEUS_NAME};
         return {
             'apiVersion': 'apps/v1',
@@ -538,7 +529,7 @@ obj SharedObservability {
         };
     }
 
-    def _alloy_daemonset(config_hash: str) -> dict[str, any][str, any] {
+    def _alloy_daemonset(config_hash: str) -> dict[str, any] {
         labels = dict(SHARED_LABELS) | {'app': ALLOY_NAME};
         return {
             'apiVersion': 'apps/v1',
@@ -586,7 +577,7 @@ obj SharedObservability {
                                     {'name': 'alloy-config', 'mountPath': '/etc/alloy'},
                                     {
                                         'name': 'varlog',
-                                        'mountPath': '/var/log',
+                                        'mountPath': '/var/log/pods',
                                         'readOnly': True
                                     },
                                     {
@@ -625,7 +616,7 @@ obj SharedObservability {
                                 'name': 'alloy-config',
                                 'configMap': {'name': f"{ALLOY_NAME}-config"}
                             },
-                            {'name': 'varlog', 'hostPath': {'path': '/var/log'}},
+                            {'name': 'varlog', 'hostPath': {'path': '/var/log/pods'}},
                             {
                                 'name': 'varlibdockercontainers',
                                 'hostPath': {'path': '/var/lib/docker/containers'}
@@ -848,80 +839,84 @@ obj SharedObservability {
     }
 
     def _put_config_map(core_v1: any, name: str, data: dict[str, str]) {
-        self._write_lanes(core_v1, name, data);
-    }
-
-    def _upsert_scrape_password(core_v1: any, key: str, password: str) {
-        ns = self.namespace();
-        existing: dict[str, str] = {};
-        try {
-            found = core_v1.read_namespaced_secret(
-                name=SCRAPE_SECRET_NAME, namespace=ns
-            );
-            existing = dict(getattr(found, 'data', {}) or {});
-        } except ApiException as e {
-            if e.status != 404 {
-                raise;
-            }
-        }
-        existing.pop(key, None);
-        body = {
-            'apiVersion': 'v1',
-            'kind': 'Secret',
-            'metadata': {
-                'name': SCRAPE_SECRET_NAME,
-                'namespace': ns,
-                'labels': dict(SHARED_LABELS)
-            },
-            'type': 'Opaque',
-            'data': existing,
-            'stringData': {key: password}
-        };
-        try {
-            core_v1.read_namespaced_secret(name=SCRAPE_SECRET_NAME, namespace=ns);
-            core_v1.replace_namespaced_secret(
-                name=SCRAPE_SECRET_NAME, namespace=ns, body=body
-            );
-        } except ApiException as e {
-            if e.status == 404 {
-                core_v1.create_namespaced_secret(namespace=ns, body=body);
-            } else {
-                raise;
-            }
-        }
-    }
-
-    def _drop_scrape_password(core_v1: any, key: str) {
-        ns = self.namespace();
-        try {
-            found = core_v1.read_namespaced_secret(
-                name=SCRAPE_SECRET_NAME, namespace=ns
-            );
-        } except ApiException as e {
-            if e.status == 404 {
+        attempt = 0;
+        while attempt < LANE_WRITE_ATTEMPTS {
+            attempt += 1;
+            (existing, rv) = self._read_lanes_versioned(core_v1, name);
+            if rv and existing == data {
                 return;
+            }
+            try {
+                self._write_lanes(core_v1, name, data, rv);
+                return;
+            } except ApiException as e {
+                if e.status != 409 or attempt >= LANE_WRITE_ATTEMPTS {
+                    raise;
+                }
+            }
+        }
+    }
+
+    def _read_secret_versioned(core_v1: any) -> tuple[dict[str, str], str] {
+        ns = self.namespace();
+        try {
+            found = core_v1.read_namespaced_secret(
+                name=SCRAPE_SECRET_NAME, namespace=ns
+            );
+            meta = found?.metadata;
+            rv = str(getattr(meta, 'resource_version', '') or '') if meta else '';
+            return (dict(getattr(found, 'data', {}) or {}), rv);
+        } except ApiException as e {
+            if e.status == 404 {
+                return ({}, '');
             }
             raise;
         }
-        existing = dict(getattr(found, 'data', {}) or {});
-        if key not in existing {
-            return;
-        }
-        existing.pop(key, None);
-        body = {
-            'apiVersion': 'v1',
-            'kind': 'Secret',
-            'metadata': {
+    }
+
+    def _put_scrape_password(core_v1: any, key: str, password: (str | None)) {
+        ns = self.namespace();
+        attempt = 0;
+        while attempt < LANE_WRITE_ATTEMPTS {
+            attempt += 1;
+            (existing, rv) = self._read_secret_versioned(core_v1);
+            if password is None and key not in existing {
+                return;
+            }
+            existing.pop(key, None);
+            meta: dict[str, any] = {
                 'name': SCRAPE_SECRET_NAME,
                 'namespace': ns,
                 'labels': dict(SHARED_LABELS)
-            },
-            'type': 'Opaque',
-            'data': existing
-        };
-        core_v1.replace_namespaced_secret(
-            name=SCRAPE_SECRET_NAME, namespace=ns, body=body
-        );
+            };
+            if rv {
+                meta['resourceVersion'] = rv;
+            }
+            body: dict[str, any] = {
+                'apiVersion': 'v1',
+                'kind': 'Secret',
+                'metadata': meta,
+                'type': 'Opaque',
+                'data': existing
+            };
+            if password is not None {
+                body['stringData'] = {key: password};
+            }
+            try {
+                if rv {
+                    core_v1.replace_namespaced_secret(
+                        name=SCRAPE_SECRET_NAME, namespace=ns, body=body
+                    );
+                } else {
+                    core_v1.create_namespaced_secret(namespace=ns, body=body);
+                }
+                return;
+            } except ApiException as e {
+                if e.status not in [409, 404] or attempt >= LANE_WRITE_ATTEMPTS {
+                    raise;
+                }
+            }
+        }
     }
 
     def _ensure_node_exporter(apps_v1: any, core_v1: any) {
@@ -1124,7 +1119,7 @@ obj SharedObservability {
         want_logs = self.k8s_config.loki_enabled;
         if want_metrics {
             self._ensure_namespace(core_v1);
-            self._upsert_scrape_password(
+            self._put_scrape_password(
                 core_v1, key, self.k8s_config.prometheus_admin_password
             );
             lanes = self._put_lane(
@@ -1177,7 +1172,7 @@ obj SharedObservability {
                 }
             );
         }
-        self._drop_scrape_password(core_v1, key);
+        self._put_scrape_password(core_v1, key, None);
 
         if key in self._read_lanes(core_v1, ALLOY_LANES_CM) {
             alloy_lanes = self._put_lane(core_v1, ALLOY_LANES_CM, key, None);
