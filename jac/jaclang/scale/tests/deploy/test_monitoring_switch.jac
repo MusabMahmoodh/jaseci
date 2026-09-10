@@ -541,3 +541,111 @@ test "destroy sweeps the per-app collectors an older release left behind" {
         assert legacy in names , f"destroy never deletes legacy '{legacy}'";
     }
 }
+
+
+def _grafana_datasources(core: ApiRecorder, app: str, ns: str) -> str {
+    body = core.store.get(f"{ns}/{app}-grafana-datasources", {});
+    return str(dict(body.get("data", {}) or {}).get("datasource.yaml", ""));
+}
+
+
+def _grafana_dashboards(core: ApiRecorder, app: str, ns: str) -> dict[str, any] {
+    body = core.store.get(f"{ns}/{app}-grafana-dashboard", {});
+    return dict(body.get("data", {}) or {});
+}
+
+
+test "an app's own Grafana gets no datasource on the shared Prometheus" {
+    # One Prometheus holds every tenant's series and has no auth in front of
+    # it, so wiring it into a per-app Grafana hands that app's owner every
+    # other app's metrics through Explore, whatever the dashboards say.
+    apps = ApiRecorder();
+    core = ApiRecorder();
+    _deploy_app("alpha", "ns-alpha", apps, core);
+    ds = _grafana_datasources(core, "alpha", "ns-alpha");
+    assert "jac-observability" not in ds;
+    assert "type: prometheus" not in ds;
+    # Loki is genuinely per-app, so it stays.
+    assert "type: loki" in ds;
+}
+
+
+test "opting in wires the shared Prometheus back for a single-tenant cluster" {
+    apps = ApiRecorder();
+    core = ApiRecorder();
+    cfg = KubernetesConfig(
+        app_name="alpha",
+        namespace="ns-alpha",
+        monitoring_enabled=True,
+        loki_enabled=True,
+        app_grafana_metrics=True
+    );
+    MonitoringDeployer(cfg, rbac_api=core).deploy(
+        "alpha",
+        "ns-alpha",
+        apps,
+        core,
+        LocalProvider(),
+        scrape_target_service="alpha-service"
+    );
+    ds = _grafana_datasources(core, "alpha", "ns-alpha");
+    assert "type: prometheus" in ds;
+    assert "jac-prometheus-service.jac-observability" in ds;
+}
+
+
+test "the metric dashboards ship only when the datasource does" {
+    # A dashboard whose datasource was never provisioned renders as an error
+    # panel, so the two have to move together.
+    apps = ApiRecorder();
+    core = ApiRecorder();
+    _deploy_app("alpha", "ns-alpha", apps, core);
+    off = _grafana_dashboards(core, "alpha", "ns-alpha");
+    assert "jac-scale.json" not in off;
+    assert "k8s-metrics.json" not in off;
+    assert "pod-logs.json" in off;
+
+    apps2 = ApiRecorder();
+    core2 = ApiRecorder();
+    cfg = KubernetesConfig(
+        app_name="beta",
+        namespace="ns-beta",
+        monitoring_enabled=True,
+        loki_enabled=True,
+        app_grafana_metrics=True
+    );
+    MonitoringDeployer(cfg, rbac_api=core2).deploy(
+        "beta",
+        "ns-beta",
+        apps2,
+        core2,
+        LocalProvider(),
+        scrape_target_service="beta-service"
+    );
+    on = _grafana_dashboards(core2, "beta", "ns-beta");
+    assert "jac-scale.json" in on;
+}
+
+
+test "the scrape credential is not mounted inside another volume" {
+    # A secret volume nested inside the config volume comes back empty after a
+    # restart, which makes password_file unreadable, which makes Prometheus
+    # reject every reload with a 500, which silently freezes the config at
+    # whatever the first app rendered.
+    shared = _shared("alpha", "ns-alpha");
+    spec = shared._prometheus_deployment("hash")["spec"]["template"]["spec"];
+    mounts: dict[str, str] = {};
+    for c in spec["containers"] {
+        for m in c.get("volumeMounts", []) {
+            mounts[str(m["name"])] = str(m["mountPath"]);
+        }
+    }
+    config_path = mounts["prometheus-config-vol"];
+    scrape_path = mounts["prometheus-scrape-secret"];
+    assert not scrape_path.startswith(config_path + "/") , (
+        f"scrape secret at {scrape_path} is nested inside {config_path}"
+    );
+    # The rendered lane has to agree with wherever it is mounted.
+    lane = shared.prometheus_lane("alpha", "ns-alpha", "alpha-service", 8000);
+    assert f"password_file: {scrape_path}/" in lane;
+}

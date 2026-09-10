@@ -474,7 +474,7 @@ obj SharedObservability {
                                     },
                                     {
                                         'name': 'prometheus-scrape-secret',
-                                        'mountPath': '/etc/prometheus/scrape',
+                                        'mountPath': '/etc/prometheus-scrape',
                                         'readOnly': True
                                     },
                                     {
@@ -721,7 +721,7 @@ obj SharedObservability {
         lane = lane + "    metrics_path: '/metrics'\n";
         lane = lane + "    basic_auth:\n";
         lane = lane + "      username: '" + str(self.k8s_config.admin_username) + "'\n";
-        lane = lane + "      password_file: /etc/prometheus/scrape/" + key + "\n";
+        lane = lane + "      password_file: /etc/prometheus-scrape/" + key + "\n";
         return lane;
     }
 

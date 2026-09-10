@@ -62,22 +62,25 @@ obj MonitoringDeployer {
             }
         }
 
-        prometheus_url = SharedObservability(
-            self.k8s_config, self.logger, self.rbac_api
-        ).prometheus_url();
+        share_metrics = self.k8s_config.app_grafana_metrics;
         loki_name = f"{app_name}-loki";
         loki_url = f"http://{loki_name}-service:3100";
-        datasource_yaml = (
-            "apiVersion: 1\n"
-            "datasources:\n"
-            "  - name: Prometheus\n"
-            "    uid: prometheus\n"
-            "    type: prometheus\n"
-            f"    url: {prometheus_url}\n"
-            "    isDefault: true\n"
-            "    access: proxy\n"
-            "    editable: true\n"
-        );
+        datasource_yaml = "apiVersion: 1\ndatasources:\n";
+        if share_metrics {
+            prometheus_url = SharedObservability(
+                self.k8s_config, self.logger, self.rbac_api
+            ).prometheus_url();
+            datasource_yaml = datasource_yaml
+                + (
+                    "  - name: Prometheus\n"
+                    "    uid: prometheus\n"
+                    "    type: prometheus\n"
+                    f"    url: {prometheus_url}\n"
+                    "    isDefault: true\n"
+                    "    access: proxy\n"
+                    "    editable: true\n"
+                );
+        }
         if self.k8s_config.loki_enabled {
             datasource_yaml = datasource_yaml
                 + (
@@ -495,9 +498,12 @@ obj MonitoringDeployer {
             + '}]}]}'
         );
 
-        dashboard_data: dict[str, str] = {'jac-scale.json': app_dashboard_json};
-        if self.k8s_config.k8s_metrics_enabled {
-            dashboard_data['k8s-metrics.json'] = k8s_dashboard_json;
+        dashboard_data: dict[str, str] = {};
+        if share_metrics {
+            dashboard_data['jac-scale.json'] = app_dashboard_json;
+            if self.k8s_config.k8s_metrics_enabled {
+                dashboard_data['k8s-metrics.json'] = k8s_dashboard_json;
+            }
         }
         if self.k8s_config.loki_enabled {
             dashboard_data['pod-logs.json'] = logs_dashboard_json;
