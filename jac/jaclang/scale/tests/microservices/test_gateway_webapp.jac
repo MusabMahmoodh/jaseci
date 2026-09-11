@@ -427,6 +427,12 @@ test "a deployed gateway serves its shell to every client, and only for page pat
         assert api_miss.status_code == 404 and "staged-shell" not in api_miss.text , (
             "a gateway-owned API segment is never answered with the shell"
         );
+        graph_page = client.get("/graph", headers={"Accept": "text/html"});
+        assert graph_page.text == "main /graph" , (
+            "/graph is delivered to the app, whose own server decides between "
+            "its graph viewer and a client route the app declares; the staged "
+            f"shell is never part of that decision; got {graph_page.text!r}"
+        );
         assert not [
             s
             for s in app_seen

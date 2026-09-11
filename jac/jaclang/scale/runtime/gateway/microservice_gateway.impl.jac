@@ -464,7 +464,7 @@ impl MicroserviceGateway.shell_answers(request: Request, path: str) -> bool {
     if is_gateway_owned_segment(seg) and seg not in GATEWAY_PAGE_SEGMENTS {
         return False;
     }
-    accept: str = request.headers.get("accept", "");
+    accept: str = str(request.headers.get("accept") or "");
     return "text/html" in accept or "application/json" not in accept;
 }
 
