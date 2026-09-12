@@ -2,6 +2,13 @@ import dis;
 import os;
 import types;
 import from pathlib { Path }
+"""Jac sources the prepared module imports at runtime.
+
+Each IMPORT_NAME is read with its level two instructions back and its
+fromlist one back. EXTENDED_ARG prefixes any instruction whose oparg exceeds
+a byte, so a module carrying more than 255 names would push both off those
+offsets and the level would read as the fromlist tuple; dropping EXTENDED_ARG
+from the list first keeps the offsets true at any name pool size."""
 def runtime_sources(code: types.CodeType, source: str, `root: str) -> set[str] {
     sources: set[str] = `set();
     pending = [code];
@@ -12,9 +19,7 @@ def runtime_sources(code: types.CodeType, source: str, `root: str) -> set[str] {
             for c in unit.co_consts
             if isinstance(c, types.CodeType)
         );
-        # EXTENDED_ARG prefixes an instruction whose oparg exceeds a byte, so a
-        # module with more than 255 names makes IMPORT_NAME carry one and shifts
-        # the level and fromlist off the fixed offsets below.
+
         instructions = [
             instruction
             for instruction in dis.get_instructions(unit)
