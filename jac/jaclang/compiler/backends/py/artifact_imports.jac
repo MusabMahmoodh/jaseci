@@ -12,7 +12,14 @@ def runtime_sources(code: types.CodeType, source: str, `root: str) -> set[str] {
             for c in unit.co_consts
             if isinstance(c, types.CodeType)
         );
-        instructions = `list(dis.get_instructions(unit));
+        # EXTENDED_ARG prefixes an instruction whose oparg exceeds a byte, so a
+        # module with more than 255 names makes IMPORT_NAME carry one and shifts
+        # the level and fromlist off the fixed offsets below.
+        instructions = [
+            instruction
+            for instruction in dis.get_instructions(unit)
+            if instruction.opname != 'EXTENDED_ARG'
+        ];
         for (index, instruction) in enumerate(instructions) {
             if ((instruction.opname != 'IMPORT_NAME') or (index < 2)) {
                 continue;
