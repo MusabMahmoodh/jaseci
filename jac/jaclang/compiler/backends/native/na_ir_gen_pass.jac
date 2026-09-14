@@ -65,7 +65,7 @@ import from jaclang.compiler.types.types {
     FunctionType as SemanticFunctionType
 }
 import from jaclang.compiler.frontend.const_fold { fold_const }
-import from jaclang.runtime.osp_model { stable_osp_tag }
+import from jaclang.runtime.osp_tag { stable_osp_tag }
 import type from jaclang.compiler.driver.program { JacProgram }
 import from jaclang.compiler.backends.native.na_constants {
     LIVE_NODE_NEXT_OFF,
@@ -325,6 +325,7 @@ walker NaIRGenPass(Transform) {
         str_wrap_raw_fn: (ir.Function | None) = None,
         str_import_fn: (ir.Function | None) = None,
         str_unwrap_fn: (ir.Function | None) = None,
+        str_materialize_fn: (ir.Function | None) = None,
         _str_desc_ty: (ir.IdentifiedStructType | None) = None,
         rc_roots_buf_gv: object = None,
         rc_roots_cap_gv: object = None,
@@ -1012,29 +1013,27 @@ walker NaIRGenPass(Transform) {
         key_size: int = 0
     ) -> None;
 
-    def _emit_dict_order_compact(
-        b: ir.IRBuilder,
-        fn: ir.Function,
-        d_ptr: ir.Value,
-        removed_slot: ir.Value,
-        new_len: ir.Value,
-        i32: ir.Type,
-        i64: ir.Type,
-        order_idx: int
-    ) -> ir.IRBuilder;
+    def _hash_order_extent_ptr(
+        b: ir.IRBuilder, order: ir.Value, capacity: ir.Value
+    ) -> ir.Value;
 
-    def _emit_order_scan_incr_block(
-        b: ir.IRBuilder,
-        idx_slot: ir.Value,
-        i_cur: ir.Value,
-        i64: ir.Type,
-        fn: ir.Function,
-        scan_bb: ir.Block
-    ) -> ir.Block;
+    def _hash_order_position_ptr(
+        b: ir.IRBuilder, order: ir.Value, capacity: ir.Value, slot: ir.Value
+    ) -> ir.Value;
+
+    def _hash_order_alloc(b: ir.IRBuilder, capacity: ir.Value) -> ir.Value;
+    def _emit_hash_order_compact_fn(
+        name: str, container_type: ir.Type, layout: dict
+    ) -> ir.Function;
+
+    def _emit_hash_order_remove_fn(
+        name: str, container_type: ir.Type, layout: dict
+    ) -> ir.Function;
 
     def _box_to_jacval(value: ir.Value) -> ir.Value;
     def _unbox_from_jacval(jv: ir.Value, target_type: ir.Type) -> ir.Value;
     def _codegen_dict_val(nd: uni.DictVal) -> (ir.Value | None);
+    def _codegen_dict_unpack(nd: uni.DictVal) -> (ir.Value | None);
     def _codegen_dict_access(
         target_val: ir.Value,
         key_val: ir.Value,
@@ -1088,7 +1087,13 @@ walker NaIRGenPass(Transform) {
     def _emit_exc_push_helper -> None;
     def _emit_exc_pop_helper -> None;
     def _emit_exc_raise_helper -> None;
-    def _emit_runtime_raise(is_error: ir.Value, exc_type_name: str, msg: str) -> None;
+    def _emit_runtime_raise(
+        is_error: ir.Value,
+        exc_type_name: str,
+        msg: str,
+        release_on_error: list[ir.Value] = []
+    ) -> None;
+
     def _get_or_register_exc_type(exc_name: str) -> int;
     def _get_exc_descendants(type_name: str) -> list[str];
     def _codegen_raise(nd: uni.RaiseStmt) -> None;
@@ -1376,6 +1381,7 @@ walker NaIRGenPass(Transform) {
     def _emit_list_helpers(elem_type_name: str, elem_type: ir.Type) -> None;
     def _emit_aos_list_helpers(tname: str) -> ir.Type;
     def _codegen_list_val(nd: uni.ListVal) -> (ir.Value | None);
+    def _coerce_container_element(value: ir.Value, element_type: ir.Type) -> ir.Value;
     def _codegen_index(
         target_val: ir.Value, index_val: ir.Value, elem_type_name: str
     ) -> (ir.Value | None);
@@ -1725,6 +1731,7 @@ walker NaIRGenPass(Transform) {
     def _str_desc_type -> ir.IdentifiedStructType;
     def _str_desc_kind -> str;
     def _str_norm(val: ir.Value) -> ir.Value;
+    def _str_materialize(val: ir.Value) -> ir.Value;
     def _str_norm_optional(val: ir.Value | None) -> (ir.Value | None);
     def _str_arg(val: ir.Value | None) -> (ir.Value | None);
     def _emit_str_desc_helpers -> None;
@@ -2090,6 +2097,11 @@ walker NaIRGenPass(Transform) {
     def _elem_spec_of(expr: (uni.UniNode | None)) -> (str | None);
     def _get_name(nd: (uni.UniNode | None)) -> (str | None);
     def _to_bool(val: ir.Value) -> ir.Value;
+    def _consume_bool(val: ir.Value) -> ir.Value;
+    def _finish_borrowed_read(
+        owner: ir.Value, value: (ir.Value | None)
+    ) -> (ir.Value | None);
+
     def _jacval_truthy(jv: ir.Value) -> ir.Value;
     def _jacval_is_none(jv: ir.Value, negate: bool) -> ir.Value;
     def _entry_alloca(var_type: ir.Type, name: str) -> ir.Value;
