@@ -230,6 +230,10 @@ def _edge_branches(fid: str, dir: int) -> list[tuple[str, str]] {
 def _edge_join(alias: str, fid: str, dir: int, econds: list[str]) -> str {
     arms: list[str] = [];
     for (cond, other) in _edge_branches(fid, dir) {
+        if fid == 'f0.id' {
+            end = 'e.src' if other == 'e.dst' else 'e.dst';
+            cond += f" AND {end} = ANY(CAST(:origin AS uuid[]))";
+        }
         where = ' AND '.join(["e.kind = 'EdgeAnchor'", cond] + econds);
         arms.append(f"SELECT e.*, {other} AS other FROM anchors e WHERE {where}");
     }

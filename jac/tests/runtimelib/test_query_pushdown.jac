@@ -260,17 +260,13 @@ def _seed_hub(store: PgStore) -> UUID {
 }
 
 
-"""Hangs `count` PFiller leaves off fresh bulk nodes, 50 per bulk node, so the
-unrelated set grows without skewing the average out-degree, then refreshes the
-planner statistics the way autovacuum would after a bulk load."""
+"""Hangs `count` PFiller leaves off one fresh bulk node, the hub-heavy degree
+distribution real graphs have, then refreshes the planner statistics the way
+autovacuum would after a bulk load."""
 def _seed_filler(store: PgStore, count: int) -> int {
-    rows: list[AnchorRow] = [];
-    bulk: (AnchorRow | None) = None;
-    for i in range(count) {
-        if bulk is None or i % 50 == 0 {
-            bulk = _node_row("PFiller", ["PFiller"]);
-            rows.append(bulk);
-        }
+    bulk = _node_row("PFiller", ["PFiller"]);
+    rows: list[AnchorRow] = [bulk];
+    for _ in range(count) {
         nd = _node_row("PFiller", ["PFiller"]);
         rows.append(nd);
         rows.append(_edge_row(bulk.id, nd.id));
