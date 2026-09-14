@@ -260,10 +260,17 @@ def _seed_hub(store: PgStore) -> UUID {
 }
 
 
+"""Hangs `count` PFiller leaves off fresh bulk nodes, 50 per bulk node, so the
+unrelated set grows without skewing the average out-degree, then refreshes the
+planner statistics the way autovacuum would after a bulk load."""
 def _seed_filler(store: PgStore, count: int) {
-    bulk = _node_row("PFiller", ["PFiller"]);
-    rows: list[AnchorRow] = [bulk];
-    for _ in range(count) {
+    rows: list[AnchorRow] = [];
+    bulk: (AnchorRow | None) = None;
+    for i in range(count) {
+        if bulk is None or i % 50 == 0 {
+            bulk = _node_row("PFiller", ["PFiller"]);
+            rows.append(bulk);
+        }
         nd = _node_row("PFiller", ["PFiller"]);
         rows.append(nd);
         rows.append(_edge_row(bulk.id, nd.id));
@@ -302,13 +309,13 @@ def _rows_examined(plan: any) -> int {
 returns (node ids in result order, rows Postgres examined to answer it)."""
 def _hop(
     store: PgStore, origin: UUID, dir: int, nd: (type | None)
-) -> tuple[list[str], int] {
+) -> tuple[list[str], int, str] {
     q = GraphQuery([], hops=[QHop(dir=dir, `edge=PLink, nd=nd)]);
     cq = compile_query(q, 1, store=store);
     cq.params["origin"] = [str(origin)];
     got = [str(r[0]) for r in store.rows(cq.sql, cq.params)];
-    plan = store.rows("EXPLAIN (ANALYZE, FORMAT JSON) " + cq.sql, cq.params);
-    return (got, _rows_examined(plan[0][0]));
+    plan = store.rows("EXPLAIN (ANALYZE, FORMAT JSON) " + cq.sql, cq.params)[0][0];
+    return (got, _rows_examined(plan), str(plan));
 }
 
 
@@ -329,15 +336,15 @@ test "a typed hop examines the same rows however many unrelated anchors exist" {
             small = {(d, t): _hop(store, hub, d, t) for (d, t, _) in cases};
             _seed_filler(store, 4500);
             for (d, t, want) in cases {
-                (ids, examined) = _hop(store, hub, d, t);
-                (ids0, examined0) = small[(d, t)];
+                (ids, examined, plan) = _hop(store, hub, d, t);
+                (ids0, examined0, _) = small[(d, t)];
                 assert len(ids) == want and len(set(ids)) == want , (
                     f"dir={d} nd={t}: expected {want} distinct nodes, got {ids}"
                 );
                 assert ids == ids0 , f"dir={d} nd={t}: result changed: {ids0} -> {ids}";
                 assert examined <= examined0 + 32 , (
                     f"dir={d} nd={t}: rows examined grew with unrelated anchors, "
-                    f"{examined0} -> {examined}; the hop is reading the table"
+                    f"{examined0} -> {examined}; the hop is reading the table: {plan}"
                 );
             }
         } finally {
