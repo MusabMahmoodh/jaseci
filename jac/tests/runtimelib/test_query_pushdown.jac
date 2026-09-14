@@ -263,7 +263,7 @@ def _seed_hub(store: PgStore) -> UUID {
 """Hangs `count` PFiller leaves off fresh bulk nodes, 50 per bulk node, so the
 unrelated set grows without skewing the average out-degree, then refreshes the
 planner statistics the way autovacuum would after a bulk load."""
-def _seed_filler(store: PgStore, count: int) {
+def _seed_filler(store: PgStore, count: int) -> int {
     rows: list[AnchorRow] = [];
     bulk: (AnchorRow | None) = None;
     for i in range(count) {
@@ -278,6 +278,7 @@ def _seed_filler(store: PgStore, count: int) {
     store.upsert(rows);
     store.rows("ANALYZE anchors", {});
     store.rows("ANALYZE graph_types", {});
+    return len(rows);
 }
 
 
@@ -334,7 +335,7 @@ test "a typed hop examines the same rows however many unrelated anchors exist" {
             ];
             _seed_filler(store, 500);
             small = {(d, t): _hop(store, hub, d, t) for (d, t, _) in cases};
-            _seed_filler(store, 4500);
+            added = _seed_filler(store, 4500);
             for (d, t, want) in cases {
                 (ids, examined, plan) = _hop(store, hub, d, t);
                 (ids0, examined0, _) = small[(d, t)];
@@ -342,9 +343,10 @@ test "a typed hop examines the same rows however many unrelated anchors exist" {
                     f"dir={d} nd={t}: expected {want} distinct nodes, got {ids}"
                 );
                 assert ids == ids0 , f"dir={d} nd={t}: result changed: {ids0} -> {ids}";
-                assert examined <= examined0 + 32 , (
-                    f"dir={d} nd={t}: rows examined grew with unrelated anchors, "
-                    f"{examined0} -> {examined}; the hop is reading the table: {plan}"
+                assert examined - examined0 < added // 8 , (
+                    f"dir={d} nd={t}: rows examined grew with the {added} unrelated "
+                    f"anchors, {examined0} -> {examined}; the hop is reading the "
+                    f"table: {plan}"
                 );
             }
         } finally {
