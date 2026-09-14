@@ -39,11 +39,9 @@ def _type_cond(alias: str, names: list[str], params: dict, pfx: str) -> str {
 }
 
 
-def _type_names(
-    tname: str, store: (Store | None), cache: dict[str, list[str]]
-) -> list[str] {
+def _type_names(tname: str, store: Store, cache: dict[str, list[str]]) -> list[str] {
     if tname not in cache {
-        names = list(store.subtype_names(tname)) if store is not None else [];
+        names = list(store.subtype_names(tname));
         if tname not in names {
             names.append(tname);
         }
@@ -253,10 +251,10 @@ def _nd_types(hop: QHop) -> list {
 impl compile_query(
     q: GraphQuery,
     upto: int,
+    store: Store,
     promotions: (dict | None) = None,
     count_only: bool = False,
-    acl_root: (str | None) = None,
-    store: (Store | None) = None
+    acl_root: (str | None) = None
 ) -> CompiledQuery {
     out = CompiledQuery();
     params: dict = {};

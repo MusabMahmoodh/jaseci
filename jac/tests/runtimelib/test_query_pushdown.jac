@@ -19,7 +19,7 @@ import from tempfile { TemporaryDirectory }
 import from uuid { UUID, uuid4 }
 import from jaclang.runtime.graph_query { GraphQuery, QHop, QPred }
 import from jaclang.server.session { runtime_for_base }
-import from jaclang.data.sqlcompile { compile_query }
+import from jaclang.data.sqlcompile { CompiledQuery, compile_query }
 import from jaclang.data.store { AnchorRow, PgStore }
 
 node PMsg {
@@ -42,6 +42,19 @@ def _store(tmpdir: str) -> PgStore {
     store.rows("SELECT 1", {});
     store.ensure_schema(PROMOS);
     return store;
+}
+
+
+"""Compiles against a real store, since a typed hop resolves its subtypes there."""
+def _compile(q: GraphQuery) -> CompiledQuery {
+    with TemporaryDirectory() as td {
+        store = _store(td);
+        try {
+            return compile_query(q, 1, store, promotions=PROMOS);
+        } finally {
+            store.close();
+        }
+    }
 }
 
 
@@ -93,7 +106,7 @@ test "compile_query names the promoted column instead of the jsonb path" {
     q = GraphQuery(
         [], hops=[QHop(dir=2, nd=PMsg, preds=[QPred(field="at", op="==", value=7)])]
     );
-    cq = compile_query(q, 1, promotions=PROMOS);
+    cq = _compile(q);
     assert "g_pmsg_at" in cq.sql , (
         f"promoted column not referenced; the index stays unreachable: {cq.sql}"
     );
@@ -106,7 +119,7 @@ test "an unpromoted field still compiles, via the jsonb path" {
     q = GraphQuery(
         [], hops=[QHop(dir=2, nd=PMsg, preds=[QPred(field="body", op="==", value="x")])]
     );
-    cq = compile_query(q, 1, promotions=PROMOS);
+    cq = _compile(q);
     assert "props->'archetype'->'body'" in cq.sql , cq.sql;
     assert not cq.residual , cq.residual;
 }
@@ -172,7 +185,7 @@ test "a promoted composite key compiles to a row comparison" {
             )
         ]
     );
-    cq = compile_query(q, 1, promotions=PROMOS);
+    cq = _compile(q);
     assert "(n1.g_pmsg_at, n1.g_pmsg_seq) <" in cq.sql , cq.sql;
     assert not cq.residual , cq.residual;
 }
@@ -189,7 +202,7 @@ test "an unpromoted composite key still compiles, via the jsonb path" {
             )
         ]
     );
-    cq = compile_query(q, 1, promotions=PROMOS);
+    cq = _compile(q);
     assert not cq.residual , (
         f"correctness must not depend on whether an index was declared: "
         f"{cq.residual}"
@@ -308,7 +321,7 @@ def _hop(
     store: PgStore, origin: UUID, dir: int, nd: (type | None)
 ) -> tuple[list[str], int, str] {
     q = GraphQuery([], hops=[QHop(dir=dir, `edge=PLink, nd=nd)]);
-    cq = compile_query(q, 1, store=store);
+    cq = compile_query(q, 1, store);
     cq.params["origin"] = [str(origin)];
     got = [str(r[0]) for r in store.rows(cq.sql, cq.params)];
     plan = store.rows("EXPLAIN (ANALYZE, FORMAT JSON) " + cq.sql, cq.params)[0][0];
@@ -361,7 +374,7 @@ test "a typed hop matches a subtype another store registered after this one open
             late = _node_row("PRareLate", ["PRareLate", "PRare"]);
             other.upsert([late, _edge_row(hub, late.id)]);
             q = GraphQuery([], hops=[QHop(dir=2, `edge=PLink, nd=PRare)]);
-            cq = compile_query(q, 1, store=store);
+            cq = compile_query(q, 1, store);
             assert "graph_types" not in cq.sql , cq.sql;
             assert "PRareLate" in cq.params["h1n0t"] , cq.params;
             cq.params["origin"] = [str(hub)];

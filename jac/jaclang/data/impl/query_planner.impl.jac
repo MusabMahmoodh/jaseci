@@ -78,7 +78,7 @@ impl _sql_pairs(
         eff.from_visit = q.from_visit;
     }
     cq = compile_query(
-        eff, upto, promotions=store?.promotions, acl_root=acl_root, store=store
+        eff, upto, store, promotions=store?.promotions, acl_root=acl_root
     );
     tail: list[QPred] = [];
     if cq.residual {
@@ -357,7 +357,7 @@ impl resolve_query_count(mem: Session, q: GraphQuery) -> int {
     }
     mem.read_barrier();
     cq = compile_query(
-        q, len(q.hops), promotions=store?.promotions, count_only=True, store=store
+        q, len(q.hops), store, promotions=store?.promotions, count_only=True
     );
     if cq.residual {
         return len(_resolve_for(mem, q));
