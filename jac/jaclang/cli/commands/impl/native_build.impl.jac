@@ -274,6 +274,14 @@ impl native_build(
 
     try {
         mod = llvm.parse_assembly(llvm_ir_str);
+        if shared {
+            import from jaclang.compiler.backends.native.shared_emit {
+                internalize_native_implementation
+            }
+            internalize_native_implementation(
+                mod, export_symbols + ["__jac_shared_init"]
+            );
+        }
         mod.verify();
     } except Exception as e {
         console.error(f"LLVM IR verification failed: {e}");
@@ -449,13 +457,7 @@ def _resolve_ca_bundle(pkg_root: str) -> (str | None) {
     bundles = sorted(
         `glob.`glob(
             os.path.join(
-                pkg_root,
-                ".python-build",
-                "jacpython",
-                "*",
-                "python",
-                "build",
-                "cacert.pem"
+                pkg_root, ".python-build", "*", "*", "python", "build", "cacert.pem"
             )
         )
     );

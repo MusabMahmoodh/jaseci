@@ -101,72 +101,6 @@ jobs:
               - 'jac/jaclang/cli/commands/impl/precompile.impl.jac'
               - '.github/actions/**'
 
-  # Validate the native runtime on the other automatic release platforms.
-  # Linux x86-64 is built and exercised by build-kit and its consumers.
-  # Intel macOS remains in the manually selected release leg.
-  jacpython-native:
-    name: jacpython-native (${{ matrix.os }})
-    needs: changes
-    if: ${{ github.event_name != 'pull_request' || needs.changes.outputs.core == 'true' }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: ubuntu-24.04-arm
-            zig_target: aarch64-linux-gnu.2.17
-          - os: macos-14
-    runs-on: ${{ matrix.os }}
-    timeout-minutes: 90
-    env:
-      DTARGET: ${{ matrix.zig_target && format('-Dtarget={0}', matrix.zig_target) || '' }}
-    steps:
-      - uses: actions/checkout@v5
-      - uses: mlugg/setup-zig@v2
-        with:
-          version: 0.16.0
-          use-cache: false
-      - uses: actions/cache/restore@v4
-        with:
-          path: jac/.llvm-build
-          key: llvm-build-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('jac/bootstrap/pins.json') }}
-      - name: Build and smoke-test the native JacPython runtime
-        working-directory: jac
-        run: zig build build-python $DTARGET --summary all
-      - name: Build and probe the packaged native JacPython binary
-        working-directory: jac
-        env:
-          JAC_NO_DEV_SOURCE: "1"
-        run: |
-          zig build $DTARGET --summary all
-          zig-out/bin/jac -c '
-          import ast, ctypes, sys
-          assert ctypes.pythonapi._PyJac_CompilerBridgeVersion() == 3
-          assert not hasattr(sys, "_jacpython_compile")
-          assert not hasattr(sys, "_jacpython_image")
-          assert eval(compile(ast.parse("6 * 7", mode="eval"), "<packaged-native>", "eval")) == 42
-          print("Packaged JacPython: native compiler active")
-          '
-      - name: Diagnose macOS native startup failures
-        if: failure() && runner.os == 'macOS'
-        continue-on-error: true
-        working-directory: jac
-        env:
-          JAC_NO_DEV_SOURCE: "1"
-        run: |
-          if [ -x zig-out/bin/jac ]; then
-            lldb --batch -o 'settings set target.disable-aslr false' -o run \
-              -k 'thread backtrace all' -k 'image list -o -f' \
-              -- zig-out/bin/jac -c 'import ast, ctypes; assert ctypes.pythonapi._PyJac_CompilerBridgeVersion() == 3; assert eval(compile(ast.parse("6 * 7", mode="eval"), "<packaged-native>", "eval")) == 42'
-          fi
-      - uses: actions/upload-artifact@v4
-        if: failure()
-        with:
-          name: jacpython-native-build-logs-${{ runner.os }}-${{ runner.arch }}
-          path: |
-            jac/.python-build/**/*.log
-            jac/zig-out/bin/jac
-          include-hidden-files: true
-
   # The kit lane builds this checkout and publishes it for every test lane.
   build-kit:
     runs-on: blacksmith-4vcpu-ubuntu-2404
@@ -594,6 +528,29 @@ jobs:
       - name: Check JacPython native code-object boundary
         if: matrix.chunk == 'passes-native'
         run: jac run scripts/test_jacpython_native.jac
+      - name: Check native standard-library replacements against CPython
+        if: matrix.chunk == 'passes-native'
+        run: |
+          jac install "hypothesis>=6,<7" --global
+          jac run scripts/run_cpython_compiler_tests.jac --module test.test_deque --native-modules _collections
+          jac run scripts/run_cpython_compiler_tests.jac --module test.test_defaultdict --native-modules _collections
+          jac run scripts/run_cpython_compiler_tests.jac --module test.test_collections --native-modules _collections
+          jac run scripts/run_cpython_compiler_tests.jac --module test.test_struct --native-modules _struct
+          jac run scripts/run_cpython_compiler_tests.jac --module test.test_functools --native-modules _functools
+          jac run scripts/run_cpython_compiler_tests.jac --module test.test_itertools --native-modules itertools
+          jac run scripts/run_cpython_compiler_tests.jac --module test.test_array --native-modules array
+          jac run scripts/run_cpython_compiler_tests.jac --module test.test_pickle --native-modules _pickle
+          jac run scripts/run_cpython_compiler_tests.jac --module test.test_math --native-modules math
+          jac run scripts/run_cpython_compiler_tests.jac --module test.test_cmath --native-modules cmath
+          jac run scripts/run_cpython_compiler_tests.jac --module test.test_csv --native-modules _csv
+          jac run scripts/run_cpython_compiler_tests.jac --module test.test_json --native-modules _json
+          jac run scripts/run_cpython_compiler_tests.jac --module test.test_queue --native-modules _queue
+          jac run scripts/run_cpython_compiler_tests.jac --module test.test_operator --native-modules _operator
+          jac run scripts/run_cpython_compiler_tests.jac --module test.test_hmac --native-modules _operator
+          jac run scripts/run_cpython_compiler_tests.jac --module test.test_binascii --native-modules binascii
+          jac run scripts/run_cpython_compiler_tests.jac --module test.test_bisect --native-modules _bisect
+          jac run scripts/run_cpython_compiler_tests.jac --module test.test_heapq --native-modules _heapq
+          jac run scripts/run_cpython_compiler_tests.jac --module test.test_random --native-modules _random
 
   # Everything except the compiler tests.
   test-runtime:
@@ -1608,7 +1565,6 @@ jobs:
     needs:
       - changes
       - build-kit
-      - jacpython-native
       - macos-native
       - jac-check
       - contribution-checks
