@@ -189,6 +189,13 @@ impl MTRuntime.factory(mtir: MTIR) -> MTRuntime {
             "stream_handler=fn)`)."
         );
     }
+    if image_resp_kind(return_type) and (is_streaming or len(tools) > 0) {
+        raise ConfigurationError(
+            "An Image return type is served by one image-generation call, which "
+            "takes no tools and does not stream. Drop tools= and stream= from "
+            "this `by` call, or return text and generate the image from a tool."
+        );
+    }
     if len(tools) > 0 {
         if return_type is None {
             tools.append(Tool.make_finish_tool(str));
