@@ -271,9 +271,7 @@ impl Model.model_call_image(params: dict[str, any]) -> dict[str, any] {
     require_optional("litellm", "llm");
     response: object;
     try {
-        response = litellm.image_generation(
-            api_key=self.api_key or None, api_base=self.api_base or None, **params
-        );
+        response = litellm.image_generation(api_key=self.api_key or None, **params);
     } except Exception as e {
         self._raise_mapped_provider_error(e);
     }

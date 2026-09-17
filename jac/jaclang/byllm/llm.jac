@@ -181,6 +181,7 @@ obj BaseLLM {
 
     def _invoke_streaming(mt_run: MTRuntime) -> Generator[StreamEvent, None, None];
     def _invoke_with_handler(mt_run: MTRuntime, on_event: Callable) -> object;
+    def _resolve_api_base -> str;
     def _get_ctx_window(call_params: dict[str, any]) -> int;
     def _resolve_compaction_params(mt_run: MTRuntime) -> dict[str, any];
     def _maybe_compact(

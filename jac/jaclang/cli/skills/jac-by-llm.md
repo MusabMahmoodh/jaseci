@@ -147,6 +147,8 @@ def draw_variants(subject: str) -> list[Image] by painter(n=3);
 # Generation options forwarded when set: n, size, quality, style, response_format,
 # user, timeout. response_format defaults to "b64_json", so the returned Image
 # carries the bytes as a data url rather than an expiring provider url.
+# system_prompt is prepended to the prompt; byLLM's built-in chat persona is
+# dropped for an image return so it cannot steer the image model.
 # Needs an image model, not a chat model. tools= and stream= raise
 # ConfigurationError, and an Image/Video argument cannot be sent with an Image
 # return (no image-editing path yet).

@@ -255,3 +255,32 @@ test "an image return type is refused with tools, which it cannot use" {
     }
     assert False , "an Image return with tools must raise ConfigurationError";
 }
+
+
+test "an image call keeps the configured endpoint and the system prompt" {
+    # Subject: the generation call is built beside make_model_params, not by it,
+    # so both have to be carried across deliberately. A custom gateway that the
+    # completion path honours must reach the image call too, and a system prompt
+    # is the only place a house style can be stated.
+    llm = MockLLM(
+        outputs=["https://cdn.example.com/a.png"],
+        config={"base_url": "https://gateway.example/v1"}
+    );
+
+    def draw_badge(subject: str) -> Image by llm(
+        system_prompt="House style: flat vector, one colour, no text."
+    );
+
+    draw_badge("a kingfisher");
+
+    sent = llm.seen[0];
+    assert sent.get("api_base") == "https://gateway.example/v1" , (
+        f"a custom gateway must serve the image call too, got {sent.get('api_base')!r}"
+    );
+    assert "House style: flat vector, one colour, no text." in sent["prompt"] , (
+        f"the system prompt must reach the image prompt, got {sent['prompt']!r}"
+    );
+    assert "only the result" not in sent["prompt"] , (
+        f"the chat persona must not steer an image model, got {sent['prompt']!r}"
+    );
+}

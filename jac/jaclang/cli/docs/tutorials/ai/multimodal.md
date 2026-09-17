@@ -216,6 +216,11 @@ byLLM asks for `b64_json` by default, so the `Image` you get back holds the
 bytes as a data URL instead of a provider URL that expires an hour later. Pass
 `response_format="url"` if you would rather keep the hosted URL.
 
+`system_prompt`, from `jac.toml` or from the call, is prepended to the prompt.
+byLLM's built-in chat persona is dropped for an image return, so it does not
+steer the image model. A custom `base_url` is honoured the same way it is on a
+completion.
+
 ### What Generation Cannot Do
 
 - `tools=` and `stream=` are refused with a `ConfigurationError`: generation is

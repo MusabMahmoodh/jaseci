@@ -1262,13 +1262,7 @@ impl BaseLLM.make_model_params(mt_run: MTRuntime) -> dict[str, any] {
     params = {
         "model": self.model_name,
         "api_key": self.api_key or None,
-        "api_base": (
-            self.config.get("base_url")
-            or self.config.get("host")
-            or self.config.get("api_base")
-            or self.api_base
-            or _model_config.get("base_url")
-        ),
+        "api_base": self._resolve_api_base(),
         "messages": messages,
         "tools": tools,
         "response_format": mt_run.get_output_schema(),
@@ -1849,14 +1843,21 @@ glob _IMAGE_CALL_PARAMS: tuple[str, ...] = (
 
 def _image_prompt(mt_run: MTRuntime) -> str {
     parts: list[str] = [];
+
+    def keep(text: str) {
+        trimmed = text.strip();
+        if trimmed {
+            parts.append(trimmed);
+        }
+    }
     for msg in mt_run.get_msg_list() {
         role = msg.get("role") if isinstance(msg, dict) else msg?.role;
-        if str(role) != "user" {
+        if str(role) not in ("system", "user") {
             continue;
         }
         content = msg.get("content") if isinstance(msg, dict) else msg?.content;
         if isinstance(content, str) {
-            parts.append(content);
+            keep(content);
             continue;
         }
         for block in content or [] {
@@ -1871,16 +1872,10 @@ def _image_prompt(mt_run: MTRuntime) -> str {
                     "byLLM has no image-editing path yet."
                 );
             }
-            parts.append(str(block.get("text") or ""));
+            keep(str(block.get("text") or ""));
         }
     }
-    return "\n".join(
-        [
-            p
-            for p in parts
-            if p
-        ]
-    ).strip();
+    return "\n".join(parts);
 }
 
 
@@ -1915,6 +1910,10 @@ impl BaseLLM.dispatch_image(mt_run: MTRuntime) -> object {
         "prompt": _image_prompt(mt_run),
         "response_format": "b64_json"
     };
+    api_base = self._resolve_api_base();
+    if api_base {
+        params["api_base"] = api_base;
+    }
     for key in _IMAGE_CALL_PARAMS {
         value = mt_run.call_params.get(key, self.call_params.get(key));
         if value is not None {
@@ -1933,6 +1932,17 @@ impl BaseLLM.dispatch_image(mt_run: MTRuntime) -> object {
     return images if image_resp_kind(mt_run.resp_type) == "many" else images[0];
 }
 
+
+impl BaseLLM._resolve_api_base -> str {
+    return (
+        self.config.get("base_url")
+        or self.config.get("host")
+        or self.config.get("api_base")
+        or self.api_base
+        or _model_config.get("base_url")
+        or ""
+    );
+}
 
 impl BaseLLM.model_call_image(params: dict[str, any]) -> dict[str, any] {
     raise NotImplementedError(
