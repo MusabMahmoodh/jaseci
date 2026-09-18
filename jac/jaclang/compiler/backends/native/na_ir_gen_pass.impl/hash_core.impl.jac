@@ -33,8 +33,8 @@ impl NaIRGenPass._emit_hash_core_helpers(
     val_type: (ir.Type | None),
     key_type_name: str,
     key_size: int,
-    layout: dict
-) -> dict {
+    layout: dict[str, any]
+) -> dict[str, any] {
     i8 = ir.IntType(8);
     i32 = ir.IntType(32);
     i64 = ir.IntType(64);
@@ -860,7 +860,7 @@ impl NaIRGenPass._emit_hash_core_helpers(
         boob.ret(ir.Constant(key_type, 0));
     }
 
-    core: dict = {
+    core: dict[str, any] = {
         "hash": hash_fn,
         "find_ph": find_fn,
         "rehash": rehash_fn,
@@ -873,6 +873,30 @@ impl NaIRGenPass._emit_hash_core_helpers(
     if has_vals {
         core["pop_ph"] = pop_fn;
 
+        slot_type = _vt.as_pointer();
+        lookup_fn = ir.Function(
+            self.llvm_module,
+            ir.FunctionType(slot_type, [cont_ptr_type, key_type, i64]),
+            name=f"{_pre}_lookup_ph_{_safe}"
+        );
+        lookup_fn.linkage = "private";
+        lookup_builder = ir.IRBuilder(lookup_fn.append_basic_block("entry"));
+        slot = lookup_builder.call(find_fn, list(lookup_fn.args), name="slot");
+        present = lookup_builder.icmp_signed(">=", slot, ir.Constant(i64, 0));
+        present_bb = lookup_fn.append_basic_block("present");
+        absent_bb = lookup_fn.append_basic_block("absent");
+        lookup_builder.cbranch(present, present_bb, absent_bb);
+        lookup_builder.position_at_end(present_bb);
+        values = lookup_builder.load(
+            lookup_builder.gep(
+                lookup_fn.args[0], [ir.Constant(i32, 0), ir.Constant(i32, VALS_F)]
+            )
+        );
+        lookup_builder.ret(lookup_builder.gep(values, [slot]));
+        lookup_builder.position_at_end(absent_bb);
+        lookup_builder.ret(ir.Constant(slot_type, None));
+        core["lookup_ph"] = lookup_fn;
+
         get_fnty = ir.FunctionType(val_type, [cont_ptr_type, key_type, i64]);
         get_fn: any = ir.Function(
             self.llvm_module, get_fnty, name=f"{_pre}_get_ph_{_safe}"
@@ -882,23 +906,15 @@ impl NaIRGenPass._emit_hash_core_helpers(
         get_fn.args[1].name = "key";
         get_fn.args[2].name = "h";
         bg = ir.IRBuilder(get_fn.append_basic_block("entry"));
-        res_g = bg.call(
-            find_fn, [get_fn.args[0], get_fn.args[1], get_fn.args[2]], name="res"
+        value_slot = bg.call(lookup_fn, list(get_fn.args), name="value.slot");
+        fnd_g = bg.icmp_unsigned(
+            "!=", value_slot, ir.Constant(slot_type, None), name="found"
         );
-        fnd_g = bg.icmp_signed(">=", res_g, ir.Constant(i64, 0), name="found");
         got_bb = get_fn.append_basic_block("got");
         miss_bb = get_fn.append_basic_block("miss");
         bg.cbranch(fnd_g, got_bb, miss_bb);
         bgg = ir.IRBuilder(got_bb);
-        va_g = bgg.load(
-            bgg.gep(
-                get_fn.args[0],
-                [ir.Constant(i32, 0), ir.Constant(i32, VALS_F)],
-                name="vp"
-            ),
-            name="va"
-        );
-        bgg.ret(bgg.load(bgg.gep(va_g, [res_g], name="vsp"), name="v"));
+        bgg.ret(bgg.load(value_slot, name="v"));
         bmi = ir.IRBuilder(miss_bb);
         if isinstance(val_type, ir.PointerType) {
             bmi.ret(ir.Constant(val_type, None));
@@ -960,13 +976,14 @@ impl NaIRGenPass._emit_hash_core_helpers(
         core["get_val"] = get_val_fn;
     }
 
-    _pub_specs: list = [
+    _pub_specs: list[tuple[str, str, any]] = [
         ("find", "find", find_fn),
         ("insert", _ins_op, ins_fn),
         ("contains", "contains", contains_fn),
         ("remove", "remove", remove_fn)
     ];
     if has_vals {
+        _pub_specs.append(("lookup", "lookup", core["lookup_ph"]));
         _pub_specs.append(("pop", "pop", core["pop_ph"]));
         _pub_specs.append(("get", "get", core["get_ph"]));
     }
@@ -1024,8 +1041,8 @@ impl NaIRGenPass._static_key_hash_of(key_node: (uni.UniNode | None)) -> (int | N
 }
 
 impl NaIRGenPass._static_key_op(
-    helpers: dict, op: str, key_node: (uni.UniNode | None)
-) -> tuple {
+    helpers: dict[str, any], op: str, key_node: (uni.UniNode | None)
+) -> tuple[ir.Function, ir.Value | None] {
     plain = helpers[op];
     ph = helpers.get(f"{op}_ph");
     if ph is None or key_node is None {

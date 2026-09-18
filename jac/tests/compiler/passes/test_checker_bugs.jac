@@ -124,7 +124,7 @@ import from tests.support { JAC_ROOT }
 import jaclang;
 import from jaclang.compiler.passes.type_checker_pass { TypeCheckPass }
 import from jaclang.compiler.driver.program { JacProgram }
-import from jaclang.compiler.passes.transform { Alert }
+import from jaclang.compiler.passes.context { Alert }
 import from jaclang.compiler.types.type_utils { compute_mro_linearization }
 import from jaclang.compiler.types.types {
     ClassDetailsShared,
@@ -668,7 +668,7 @@ test "bug_impl1_has_var_shadow_in_impl_body" {
     #   - `x: list[dict] = tasks` is a sound assignment
     assert len(program.errors_had) == 0 , (
         "Bug #IMPL-1: has var `tasks` in impl body should resolve to the "
-        "parent HasVar (type list[dict]), not a local shadow (type Unknown). "
+        "parent HasVar (type list[dict[str, any]]), not a local shadow (type Unknown). "
         f"Got errors: {[str(e) for e in program.errors_had]}"
     );
 }
@@ -745,11 +745,11 @@ test "bug_dstr1_docstring_before_local_declaration" {
     );
 }
 
-test "bug_dloc1_decorated_class_in_function_body" {
+test "bug_dloc1_decorated_object_in_function_body" {
     program = compile_and_check("checker_bug_decorated_local_class.jac");
 
     assert len(program.errors_had) == 0 , (
-        "Bug #DLOC-1: a decorated class inside a function body must parse "
+        "Bug #DLOC-1: a decorated object inside a function body must parse "
         "as an Archetype so the type checker recognises its constructor and "
         "fields. "
         f"Got errors: {[str(e) for e in program.errors_had]}"
@@ -1303,7 +1303,7 @@ test "bug_cyctaint1_settling_cycle_checks_clean_and_resolves" {
     config_sym = mod.names_in_scope.get("CONFIG");
     assert config_sym is not None , "CONFIG symbol missing from fixture module";
     settled = program.get_type_evaluator().get_type_of_symbol(config_sym);
-    assert not isinstance(settled, UnknownType) and str(settled) == "dict" , (
+    assert not isinstance(settled, UnknownType) and str(settled) == "dict[Any, Any]" , (
         "Bug #CYCLE-TAINT-1: after the cycle unwinds, a later query must "
         "resolve the settled type (dict via Reg.defaults), not a frozen "
         f"Unknown. Got: {settled}"
@@ -1356,7 +1356,7 @@ test "bug_cycprec1_genuine_error_in_cycle_window_still_fires" {
     config_sym = mod.names_in_scope.get("CONFIG");
     assert config_sym is not None , "CONFIG symbol missing from fixture module";
     settled = program.get_type_evaluator().get_type_of_symbol(config_sym);
-    assert not isinstance(settled, UnknownType) and str(settled) == "dict" , (
+    assert not isinstance(settled, UnknownType) and str(settled) == "dict[Any, Any]" , (
         "Bug #CYCLE-PRECISION-1: CONFIG must still settle to dict. " f"Got: {settled}"
     );
 }
@@ -1411,11 +1411,11 @@ test "bug_cycprec1_node_type_never_stores_incomplete_result" {
     );
 
     settled = evaluator.get_type_of_expression(config_use);
-    assert not isinstance(settled, UnknownType) and str(settled) == "dict" , (
+    assert not isinstance(settled, UnknownType) and str(settled) == "dict[Any, Any]" , (
         "Bug #CYCLE-PRECISION-1: after the stack unwinds, the same query "
         f"must resolve the settled type. Got: {settled}"
     );
-    assert config_use.type is not None and str(config_use.type) == "dict" , (
+    assert config_use.type is not None and str(config_use.type) == "dict[Any, Any]" , (
         "Bug #CYCLE-PRECISION-1: the settled (complete) type must be "
         f"cached on the node. Got: {config_use.type}"
     );

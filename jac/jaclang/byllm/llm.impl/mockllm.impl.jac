@@ -1,5 +1,5 @@
 def _mock_jsonable(value: object) -> object {
-    import from dataclasses { fields, is_dataclass }
+    import from jaclang.runtime.object_interop { fields, is_record }
     import from enum { Enum }
     import from jaclang.runtime.archetype { Archetype }
     if value is None or isinstance(value, (bool, int, float, str)) {
@@ -25,7 +25,7 @@ def _mock_jsonable(value: object) -> object {
             if not k.startswith("_")
         };
     }
-    if is_dataclass(value) and not isinstance(value, type) {
+    if is_record(value) and not isinstance(value, type) {
         return {
             f.name: _mock_jsonable(getattr(value, f.name))
             for f in fields(value)
@@ -55,7 +55,7 @@ def _mock_takes_string(response_format: object) -> bool {
         return False;
     }
     options = answer.get("anyOf");
-    choices: list = options if isinstance(options, list) else [answer];
+    choices: list[any] = options if isinstance(options, list) else [answer];
     return any(isinstance(c, dict) and c.get("type") == "string" for c in choices);
 }
 
@@ -64,7 +64,7 @@ def _mock_turn(
     output: object, text_is_value: bool = False
 ) -> MockRawResponse | MockError {
     counters = ("prompt_tokens", "completion_tokens", "total_tokens");
-    usage: dict | None = None;
+    usage: dict[str, any] | None = None;
     if isinstance(output, tuple)
         and len(output) == 2
         and isinstance(output[1], dict)
@@ -138,7 +138,7 @@ def _mock_response(turn: MockRawResponse, model: str) -> object {
             "function": {"name": name, "arguments": args}
         } for (call_id, name, args) in _mock_tool_calls(turn)
     ];
-    payload: dict = {
+    payload: dict[str, any] = {
         "model": model,
         "choices": [
             {
@@ -160,9 +160,12 @@ def _mock_response(turn: MockRawResponse, model: str) -> object {
 
 
 def _mock_chunk(
-    model: str, delta: dict, finish_reason: str | None = None, usage: dict | None = None
+    model: str,
+    delta: dict[str, any],
+    finish_reason: str | None = None,
+    usage: dict[str, any] | None = None
 ) -> object {
-    payload: dict = {
+    payload: dict[str, any] = {
         "id": "chunk",
         "object": "chat.completion.chunk",
         "created": 1,
@@ -178,12 +181,12 @@ def _mock_chunk(
 }
 
 
-def _mock_chunks(turn: MockRawResponse, model: str, size: int) -> list {
-    out: list = [];
+def _mock_chunks(turn: MockRawResponse, model: str, size: int) -> list[object] {
+    out: list[object] = [];
     first = True;
     text = turn.content;
     for i in range(0, len(text), size) {
-        delta: dict = {"content": text[i:i + size]};
+        delta: dict[str, any] = {"content": text[i:i + size]};
         if first {
             delta["role"] = "assistant";
         }
@@ -193,7 +196,7 @@ def _mock_chunks(turn: MockRawResponse, model: str, size: int) -> list {
     for (index, (call_id, name, args)) in enumerate(_mock_tool_calls(turn)) {
         pieces = [args[i:i + size] for i in range(0, len(args), size)] or [""];
         for (n, piece) in enumerate(pieces) {
-            frag: dict = {"index": index, "function": {"arguments": piece}};
+            frag: dict[str, any] = {"index": index, "function": {"arguments": piece}};
             if n == 0 {
                 frag["id"] = call_id;
                 frag["type"] = "function";
@@ -229,7 +232,7 @@ impl MockLLM.postinit -> None {
     self._queue = self.outputs;
 }
 
-impl MockLLM._current_queue -> list {
+impl MockLLM._current_queue -> list[any] {
     configured = self.config.get("outputs");
     if self.outputs is not self._queue {
         queue = self.outputs;
@@ -246,7 +249,7 @@ impl MockLLM._current_queue -> list {
     return queue;
 }
 
-impl MockLLM._next_reply(params: dict) -> MockRawResponse | MockError {
+impl MockLLM._next_reply(params: dict[str, any]) -> MockRawResponse | MockError {
     self.seen.append(params);
     self.seen_prompts.append(
         "\n".join(
@@ -271,7 +274,42 @@ impl MockLLM._next_reply(params: dict) -> MockRawResponse | MockError {
     return _mock_turn(queue.pop(0), _mock_takes_string(params.get("response_format")));
 }
 
-impl MockLLM.model_call_no_stream(params: dict) -> object {
+def _mock_image_response(output: object, model: str) -> dict[str, any] {
+    if isinstance(output, MockError) {
+        raise output.error;
+    }
+    data: list[dict[str, any]] = [];
+    items: list[any] = output if isinstance(output, list) else [output];
+    for item in items {
+        source = item.url if isinstance(item, Image) else item;
+        if isinstance(source, (bytes, bytearray, memoryview)) {
+            data.append({"b64_json": base64.b64encode(bytes(source)).decode("utf-8")});
+        } elif isinstance(source, str) {
+            data.append({"url": source});
+        } else {
+            raise TypeError(
+                f"MockLLM cannot serve a {type(item).__name__} as a generated "
+                "image; queue image bytes, a url string, or an Image"
+            );
+        }
+    }
+    return {"model": model, "data": data};
+}
+
+
+impl MockLLM.model_call_image(params: dict[str, any]) -> dict[str, any] {
+    self.seen.append(params);
+    self.seen_prompts.append(str(params.get("prompt") or ""));
+    queue = self._current_queue();
+    if not queue {
+        raise IndexError(
+            f"MockLLM has no queued output left for call {len(self.seen)}"
+        );
+    }
+    return _mock_image_response(queue.pop(0), params.get("model") or self.model_name);
+}
+
+impl MockLLM.model_call_no_stream(params: dict[str, any]) -> object {
     require_optional("litellm", "llm");
     turn = self._next_reply(params);
     if isinstance(turn, MockError) {
@@ -280,7 +318,9 @@ impl MockLLM.model_call_no_stream(params: dict) -> object {
     return _mock_response(turn, params.get("model") or self.model_name);
 }
 
-impl MockLLM.model_call_with_stream(params: dict) -> Generator[object, None, None] {
+impl MockLLM.model_call_with_stream(
+    params: dict[str, any]
+) -> Generator[object, None, None] {
     require_optional("litellm", "llm");
     turn = self._next_reply(params);
     model = params.get("model") or self.model_name;
@@ -300,7 +340,7 @@ impl MockLLM.model_call_with_stream(params: dict) -> Generator[object, None, Non
     }
 }
 
-impl MockLLM.sent(key: str) -> list {
+impl MockLLM.sent(key: str) -> list[any] {
     return [p.get(key) for p in self.seen];
 }
 

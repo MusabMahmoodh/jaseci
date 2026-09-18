@@ -31,7 +31,7 @@ def _install_mock(handler: any) -> any {
     def fake(
         url: str,
         json_body: any = None,
-        headers: (dict | None) = None,
+        headers: (dict[str, any] | None) = None,
         timeout: float = 30.0,
         label: str = ''
     ) -> tuple[str, any] {
@@ -60,7 +60,7 @@ def _restore_rpc_timeout(original: any) {
 }
 
 """Replace the function transport with one that always fails to connect."""
-def _install_unreachable_transport(round_trips: dict) -> any {
+def _install_unreachable_transport(round_trips: dict[str, any]) -> any {
     import from jaclang.server.serving.client { ClientRequestNotSent }
     original = sv_http.post_stream_aware_sync;
 
@@ -73,7 +73,7 @@ def _install_unreachable_transport(round_trips: dict) -> any {
 }
 
 """Replace the walker transport with one that always fails to connect."""
-def _install_unreachable_walker_transport(round_trips: dict) -> any {
+def _install_unreachable_walker_transport(round_trips: dict[str, any]) -> any {
     import from jaclang.server.serving.client { ClientRequestNotSent }
     original = sv_http.request_sync;
 
@@ -99,7 +99,7 @@ test "set_current_auth None stores empty string" {
 }
 
 test "sv_service_call forwards Authorization header when auth set" {
-    captured: dict = {};
+    captured: dict[str, any] = {};
 
     def handler(request: _MockRequest) -> _MockResponse {
         captured["auth"] = request.headers.get("Authorization", "");
@@ -126,7 +126,7 @@ test "sv_service_call forwards Authorization header when auth set" {
 }
 
 test "sv_service_call omits Authorization when no auth context" {
-    captured: dict = {"auth": "sentinel"};
+    captured: dict[str, any] = {"auth": "sentinel"};
 
     def handler(request: _MockRequest) -> _MockResponse {
         captured["auth"] = request.headers.get("Authorization", "");
@@ -172,7 +172,7 @@ test "sv_service_call surfaces application-level error from envelope" {
 }
 
 test "sv_service_call retries on transport error and succeeds on 2nd attempt" {
-    call_count: dict = {"n": 0};
+    call_count: dict[str, any] = {"n": 0};
 
     def handler(request: _MockRequest) -> _MockResponse {
         call_count["n"] = call_count["n"] + 1;
@@ -196,7 +196,7 @@ test "sv_service_call retries on transport error and succeeds on 2nd attempt" {
 }
 
 test "sv_service_call gives up after max_attempts on persistent transport error" {
-    call_count: dict = {"n": 0};
+    call_count: dict[str, any] = {"n": 0};
 
     def handler(request: _MockRequest) -> _MockResponse {
         call_count["n"] = call_count["n"] + 1;
@@ -255,7 +255,7 @@ test "ensure_trace_id mints a UUID4 when no inbound header" {
 }
 
 test "sv_service_call forwards X-Trace-Id when set in context" {
-    captured: dict = {"trace": ""};
+    captured: dict[str, any] = {"trace": ""};
 
     def handler(request: _MockRequest) -> _MockResponse {
         captured["trace"] = request.headers.get("X-Trace-Id", "");
@@ -280,7 +280,7 @@ test "sv_service_call forwards X-Trace-Id when set in context" {
 }
 
 test "sv_service_call omits X-Trace-Id when no trace context is set" {
-    captured: dict = {"trace": "sentinel"};
+    captured: dict[str, any] = {"trace": "sentinel"};
 
     def handler(request: _MockRequest) -> _MockResponse {
         captured["trace"] = request.headers.get("X-Trace-Id", "");
@@ -414,7 +414,7 @@ test "walker_call records one breaker failure per failed round trip" {
 
     mod = "breaker_walker_per_attempt_test";
     _breaker_reset(mod);
-    round_trips: dict = {"n": 0};
+    round_trips: dict[str, any] = {"n": 0};
     original_request = _install_unreachable_walker_transport(round_trips);
 
     try {
@@ -437,7 +437,7 @@ test "walker_call records one breaker failure per failed round trip" {
 test "breaker opens after exactly the trip threshold of failed round trips" {
     mod = "breaker_trip_roundtrips_test";
     _breaker_reset(mod);
-    round_trips: dict = {"n": 0};
+    round_trips: dict[str, any] = {"n": 0};
     original_post = _install_unreachable_transport(round_trips);
 
     try {
@@ -474,7 +474,7 @@ test "a breaker that trips mid-call abandons the remaining retries" {
     }
     _breaker_force_cooldown_elapsed(mod);
 
-    round_trips: dict = {"n": 0};
+    round_trips: dict[str, any] = {"n": 0};
     original_post = _install_unreachable_transport(round_trips);
 
     try {
@@ -530,7 +530,7 @@ test "application error envelope does NOT trip the breaker" {
 }
 
 test "sv_service_call does NOT retry on application error envelope" {
-    call_count: dict = {"n": 0};
+    call_count: dict[str, any] = {"n": 0};
 
     def handler(request: _MockRequest) -> _MockResponse {
         call_count["n"] = call_count["n"] + 1;
@@ -563,7 +563,7 @@ test "sv_service_call does NOT retry on application error envelope" {
 
 
 test "sv_service_call uses the default 10s timeout when no per-service override" {
-    captured: dict = {};
+    captured: dict[str, any] = {};
 
     def handler(request: _MockRequest) -> _MockResponse {
         captured["timeout"] = request.timeout;
@@ -584,7 +584,7 @@ test "sv_service_call uses the default 10s timeout when no per-service override"
 
 
 test "sv_service_call honors per-service rpc_timeout from config" {
-    captured: dict = {};
+    captured: dict[str, any] = {};
 
     def handler(request: _MockRequest) -> _MockResponse {
         captured["timeout"] = request.timeout;
@@ -613,10 +613,10 @@ test "_sv_rpc_timeout returns default when config lookup fails" {
 }
 
 
-test "sv_service_call uses URL from get_sv_registry hookspec when present" {
-    import jaclang;
+test "sv_service_call uses URL from get_sv_service_routes when present" {
+    import from jaclang.scale.runtime.context.service_routing { ServiceRoute }
 
-    captured: dict = {};
+    captured: dict[str, any] = {};
     def handler(request: _MockRequest) -> _MockResponse {
         captured["url"] = str(request.url);
         return _MockResponse(
@@ -625,14 +625,17 @@ test "sv_service_call uses URL from get_sv_registry hookspec when present" {
     }
 
     original_post = _install_mock(handler);
-    original_get_registry = jaclang.JacRuntime.get_sv_registry;
+    original_get_routes = JacScaleRuntime.get_sv_service_routes;
 
-    def fake_registry -> dict[str, str] {
+    def fake_routes -> dict[str, ServiceRoute] {
         return {
-            "k9_test_mod": "http://k9-test-mod-service.prod.svc.cluster.local:8000"
+            "k9_test_mod": ServiceRoute(
+                url="http://k9-test-mod-service.prod.svc.cluster.local:8000",
+                host_header=None
+            )
         };
     }
-    _as_any(jaclang.JacRuntime).get_sv_registry = staticmethod(fake_registry);
+    _as_any(JacScaleRuntime).get_sv_service_routes = staticmethod(fake_routes);
 
     try {
         if "k9_test_mod" in sv_client._registry {
@@ -644,16 +647,14 @@ test "sv_service_call uses URL from get_sv_registry hookspec when present" {
 
         assert "k9-test-mod-service.prod.svc.cluster.local" in captured["url"];
     } finally {
-        jaclang.JacRuntime.get_sv_registry = original_get_registry;
+        JacScaleRuntime.get_sv_service_routes = original_get_routes;
         sv_http.post_stream_aware_sync = original_post;
     }
 }
 
 
-test "sv_service_call falls back to sv_client.resolve_url when hookspec empty" {
-    import jaclang;
-
-    captured: dict = {};
+test "sv_service_call falls back to sv_client.resolve_url when the dynamic registry is empty" {
+    captured: dict[str, any] = {};
     def handler(request: _MockRequest) -> _MockResponse {
         captured["url"] = str(request.url);
         return _MockResponse(
@@ -662,9 +663,9 @@ test "sv_service_call falls back to sv_client.resolve_url when hookspec empty" {
     }
 
     original_post = _install_mock(handler);
-    original_get_registry = jaclang.JacRuntime.get_sv_registry;
+    original_get_routes = JacScaleRuntime.get_sv_service_routes;
 
-    _as_any(jaclang.JacRuntime).get_sv_registry = staticmethod(lambda { {}; });
+    _as_any(JacScaleRuntime).get_sv_service_routes = staticmethod(lambda { {}; });
 
     try {
         sv_client.register("k9_fallback_mod", "http://fallback.invalid:9999");
@@ -672,9 +673,100 @@ test "sv_service_call falls back to sv_client.resolve_url when hookspec empty" {
         assert result == "via-fallback";
         assert "fallback.invalid:9999" in captured["url"];
     } finally {
-        jaclang.JacRuntime.get_sv_registry = original_get_registry;
+        JacScaleRuntime.get_sv_service_routes = original_get_routes;
         sv_http.post_stream_aware_sync = original_post;
         sv_client.unregister("k9_fallback_mod");
+    }
+}
+
+
+test "sv_service_call sets the Host header when the resolved route carries one" {
+    import from jaclang.scale.runtime.context.service_routing { ServiceRoute }
+
+    captured: dict[str, any] = {};
+    def handler(request: _MockRequest) -> _MockResponse {
+        captured["headers"] = request.headers;
+        return _MockResponse(
+            json_payload={"ok": True, "data": {"result": "via-interceptor"}}
+        );
+    }
+
+    original_post = _install_mock(handler);
+    original_get_routes = JacScaleRuntime.get_sv_service_routes;
+
+    def fake_routes -> dict[str, ServiceRoute] {
+        return {
+            "k9_intercepted_mod": ServiceRoute(
+                url="http://keda-add-ons-http-interceptor-proxy.keda:8080",
+                host_header="k9-intercepted-mod-service.prod.svc.cluster.local"
+            )
+        };
+    }
+    _as_any(JacScaleRuntime).get_sv_service_routes = staticmethod(fake_routes);
+
+    try {
+        if "k9_intercepted_mod" in sv_client._registry {
+            sv_client.unregister("k9_intercepted_mod");
+        }
+        result = JacScaleRuntime.sv_service_call("k9_intercepted_mod", "do", {});
+        assert result == "via-interceptor";
+        assert (
+            captured["headers"]["Host"]
+            == "k9-intercepted-mod-service.prod.svc.cluster.local"
+        );
+    } finally {
+        JacScaleRuntime.get_sv_service_routes = original_get_routes;
+        sv_http.post_stream_aware_sync = original_post;
+    }
+}
+
+
+test "get_sv_service_routes warns once on a failing lookup, then again after it recovers and fails again" {
+    # get_sv_service_routes runs on every sv-to-sv call, so an unreachable
+    # or malformed scale config used to warn on every single one of them.
+    import logging;
+    import os;
+    import from types { SimpleNamespace }
+    import jaclang.scale.runtime.provider as provider_mod;
+    import jaclang.scale.config.config_loader as config_loader_mod;
+
+    plugin_logger = logging.getLogger("jaclang.scale.runtime.provider");
+    original_warning = plugin_logger.warning;
+    original_get_scale_config = config_loader_mod.get_scale_config;
+    warn_calls: list = [];
+
+    def failing_config(project_dir: object = None) -> object {
+        raise RuntimeError("config unreachable");
+    }
+
+    def healthy_config(project_dir: object = None) -> object {
+        return SimpleNamespace(get_gateway_config=lambda { {"gateway_port": 8000}});
+    }
+
+    had_k8s_env = "KUBERNETES_SERVICE_HOST" in os.environ;
+    os.environ["KUBERNETES_SERVICE_HOST"] = "10.0.0.1";
+    provider_mod._sv_service_routes_warned = False;
+    setattr(plugin_logger, "warning", lambda (msg: str) { warn_calls.append(msg); });
+
+    try {
+        for (label, loader, expected) in [
+            ("three failing calls warn once", failing_config, 1),
+            ("a recovered call stays quiet", healthy_config, 1),
+            ("failing again after recovery warns again", failing_config, 2)
+        ] {
+            setattr(config_loader_mod, "get_scale_config", loader);
+            for _ in range(3) {
+                JacScaleRuntime.get_sv_service_routes();
+            }
+            assert len(warn_calls) == expected , label;
+        }
+    } finally {
+        setattr(config_loader_mod, "get_scale_config", original_get_scale_config);
+        setattr(plugin_logger, "warning", original_warning);
+        provider_mod._sv_service_routes_warned = False;
+        if not had_k8s_env {
+            os.environ.pop("KUBERNETES_SERVICE_HOST", None);
+        }
     }
 }
 
@@ -684,13 +776,15 @@ import threading;
 
 
 """Count round trips and delivered POSTs apart; an abandoned connect is not a delivery."""
-def _start_counting_server(counts: dict, reply: (bytes | None)) -> tuple {
+def _start_counting_server(
+    counts: dict[str, any], reply: (bytes | None)
+) -> tuple[any, ...] {
     srv = socket.socket(socket.AF_INET, socket.SOCK_STREAM);
     srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1);
     srv.bind(("127.0.0.1", 0));
     srv.listen(8);
     port = srv.getsockname()[1];
-    held: list = [];
+    held: list[any] = [];
 
     def serve {
         while True {
@@ -724,7 +818,7 @@ def _start_counting_server(counts: dict, reply: (bytes | None)) -> tuple {
 }
 
 
-def _stop_counting_server(srv: any, held: list) {
+def _stop_counting_server(srv: any, held: list[any]) {
     try {
         srv.close();
     } except OSError {}
@@ -737,7 +831,7 @@ def _stop_counting_server(srv: any, held: list) {
 
 
 test "walker_call sends exactly one POST to a peer that never replies" {
-    counts: dict = {"conns": 0, "posts": 0};
+    counts: dict[str, any] = {"conns": 0, "posts": 0};
     (srv, held, port) = _start_counting_server(counts, None);
     mod = "deaf_walker_mod";
     _breaker_reset(mod);
@@ -763,7 +857,7 @@ test "walker_call sends exactly one POST to a peer that never replies" {
 
 
 test "service_call sends exactly one POST to a peer that never replies" {
-    counts: dict = {"conns": 0, "posts": 0};
+    counts: dict[str, any] = {"conns": 0, "posts": 0};
     (srv, held, port) = _start_counting_server(counts, None);
     mod = "deaf_service_mod";
     _breaker_reset(mod);
@@ -789,7 +883,7 @@ test "service_call sends exactly one POST to a peer that never replies" {
 
 
 test "service_call does not retry an HTTP 500" {
-    counts: dict = {"conns": 0, "posts": 0};
+    counts: dict[str, any] = {"conns": 0, "posts": 0};
     reply = (
         b"HTTP/1.1 500 Internal Server Error\r\n"
         + b"Content-Type: text/plain\r\n"
@@ -821,13 +915,13 @@ test "service_call does not retry an HTTP 500" {
 
 
 """Record the request line's path of every POST and answer it with `reply`."""
-def _start_capturing_server(paths: list[str], reply: bytes) -> tuple {
+def _start_capturing_server(paths: list[str], reply: bytes) -> tuple[any, ...] {
     srv = socket.socket(socket.AF_INET, socket.SOCK_STREAM);
     srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1);
     srv.bind(("127.0.0.1", 0));
     srv.listen(8);
     port = srv.getsockname()[1];
-    held: list = [];
+    held: list[any] = [];
 
     def serve {
         while True {

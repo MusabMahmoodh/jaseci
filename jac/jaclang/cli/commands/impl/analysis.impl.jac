@@ -3,7 +3,7 @@ import from fnmatch { fnmatch }
 import from jaclang.cli.console { console }
 import from jaclang.cli.check_report {
     print_file_progress,
-    print_failures,
+    print_section,
     print_failed_summary,
     print_final_summary,
     print_native_coverage,
@@ -17,11 +17,11 @@ def _maybe_malloc_trim {
 
 glob _CHECK_STATE: dict[(str, any)] = {"prog": None, "coverage_on": False};
 
-def _wire_list(value: any) -> list {
+def _wire_list(value: any) -> list[any] {
     return value if isinstance(value, list) else [];
 }
 
-def _wire_dict(value: any) -> dict {
+def _wire_dict(value: any) -> dict[str, any] {
     return value if isinstance(value, dict) else {};
 }
 
@@ -216,10 +216,10 @@ def _check_file_job(request: dict[(str, any)]) -> dict[(str, any)] {
 }
 
 impl check(
-    paths: list,
+    paths: list[str],
     print_errs: bool = True,
-    ignore: (list | None) = None,
-    disable_error_code: (list | None) = None,
+    ignore: (list[str] | None) = None,
+    disable_error_code: (list[str] | None) = None,
     parse_only: bool = False,
     nowarn: bool = False,
     lint_only: bool = False,
@@ -376,8 +376,8 @@ impl check(
 
     results: list[dict[(str, any)]] = [];
     plan: dict[(str, int)] = {'total': len(units)};
-    placement_report: dict = {};
-    coverage_report: dict = {};
+    placement_report: dict[str, any] = {};
+    coverage_report: dict[str, any] = {};
 
     def run_units(batch: list[dict[(str, any)]]) -> None {
         if not batch {
@@ -467,7 +467,8 @@ impl check(
     }
 
     multi = len({r['label'] for r in results}) > 1;
-    failed_results: list[dict] = [];
+    failed_results: list[dict[str, any]] = [];
+    warning_results: list[dict[str, any]] = [];
     total_errors = failed_files=0;
     for res in results {
         errs = _wire_list(res.get('errors'));
@@ -482,18 +483,12 @@ impl check(
             }
         }
         total_errors += len(errs);
+        path = (f"[{res['label']}] " if multi else '') + str(res.get('path'));
         if not res.get('success') {
             failed_files += 1;
-        }
-        if not res.get('success') or (len(warns) > 0 and not nowarn) {
-            failed_results.append(
-                {
-                    'path': (f"[{res['label']}] " if multi else '')
-                        + str(res.get('path')),
-                    'errors': errs,
-                    'warnings': warns
-                }
-            );
+            failed_results.append({'path': path, 'errors': errs, 'warnings': warns});
+        } elif len(warns) > 0 {
+            warning_results.append({'path': path, 'warnings': warns});
         }
     }
     if native_coverage {
@@ -503,10 +498,13 @@ impl check(
         print_placement_report(placement_report);
     }
     if print_errs and len(failed_results) > 0 {
-        print_failures(failed_results, nowarn);
+        print_section("FAILURES", failed_results, nowarn);
     }
     if failed_files > 0 {
         print_failed_summary(failed_results);
+    }
+    if print_errs and len(warning_results) > 0 {
+        print_section("WARNINGS", warning_results, nowarn);
     }
 
     elapsed = time() - start_time;
@@ -514,7 +512,9 @@ impl check(
     return 1 if (total_errors > 0 or had_path_errors) else 0;
 }
 
-impl lint(paths: list, fix: bool = False, ignore: (list | None) = None) -> int {
+impl lint(
+    paths: list[str], fix: bool = False, ignore: (list[str] | None) = None
+) -> int {
     import from jaclang.compiler.driver.program { JacProgram }
     if isinstance(paths, str) {
         paths = [paths];
@@ -686,14 +686,14 @@ def _format_single_file_worker(
     cache_stamp: str = "",
     cache_anchor: str = "",
     logical_path: str = ""
-) -> dict {
+) -> dict[str, any] {
     import os;
     import from jaclang.compiler.driver.program { JacProgram }
     import from jaclang.project.source { read_file_with_encoding }
     path_obj = Path(file_path);
 
     effective_logical = logical_path or file_path;
-    result: dict = {
+    result: dict[str, any] = {
         'path': file_path,
         'success': False,
         'changed': False,
@@ -953,14 +953,14 @@ def _format_single_file_worker(
 }
 
 impl format(
-    paths: list,
+    paths: list[str],
     to_screen: bool = False,
     lintfix: bool = False,
     check: bool = False,
     cache: bool = False,
     cache_anchor: str = "",
-    path_map: dict | None = None,
-    cache_stats: dict | None = None,
+    path_map: dict[str, str] | None = None,
+    cache_stats: dict[str, int] | None = None,
     jobs: str = ""
 ) -> int {
     import os;
@@ -993,7 +993,7 @@ impl format(
     }
 
     unformatted_files: list[str] = [];
-    failed_results: list = [];
+    failed_results: list[dict[str, any]] = [];
 
     (all_files, had_path_errors) = _iter_jac_files(paths);
     total_files = len(all_files);
@@ -1019,11 +1019,11 @@ impl format(
         and total_files > 1
     );
 
-    results_by_idx: dict[(int, dict)] = {};
+    results_by_idx: dict[int, dict[str, any]] = {};
 
     progress: dict[(str, any)] = {"pooled": use_pool, "done": 0};
 
-    def fmt_job(request: dict[(str, any)]) -> dict {
+    def fmt_job(request: dict[(str, any)]) -> dict[str, any] {
         fp = str(request["path"]);
         return _format_single_file_worker(
             fp, lintfix, check, covered, cache_stamp, cache_anchor, remap.get(fp, "")
@@ -1087,7 +1087,7 @@ impl format(
     } else {
         pool.run_inline();
     }
-    results: list[dict] = [];
+    results: list[dict[str, any]] = [];
     for idx in range(total_files) {
         if idx not in results_by_idx {
             on_record(idx, {'error': 'no result'});
@@ -1175,16 +1175,7 @@ impl format(
     }
 
     if failed_results {
-        import from jaclang.cli.check_report { separator }
-        console.print("");
-        console.print(separator("FAILURES"));
-        for r in failed_results {
-            console.print(separator(str(r['path']), char='_'));
-            for e in r['errors'] {
-                console.error(e);
-            }
-            console.print("");
-        }
+        print_section("FAILURES", failed_results);
         print_failed_summary(failed_results);
     }
 
@@ -1236,12 +1227,12 @@ impl format(
 }
 
 impl precommit(
-    paths: (list | None) = None,
+    paths: (list[str] | None) = None,
     staged: bool = False,
     verify: bool = False,
     install: bool = False,
     force: bool = False,
-    cache_stats: dict | None = None
+    cache_stats: dict[str, int] | None = None
 ) -> int {
     import os;
     import shutil;
@@ -1300,7 +1291,7 @@ impl precommit(
 
     fmt_targets = targets;
     tmp_root: (str | None) = None;
-    path_map: dict = {};
+    path_map: dict[str, str] = {};
     if staged and verify {
         dirty = _staged_dirty_files(git_root, rel_targets);
         if dirty {
@@ -1377,7 +1368,7 @@ impl precommit(
     }
     console.print("precommit: formatting (--lintfix)", style="muted");
 
-    stats: dict = cache_stats if cache_stats is not None else {};
+    stats: dict[str, int] = cache_stats if cache_stats is not None else {};
     fmt_ret = format(
         fmt_targets,
         to_screen=False,
@@ -1534,7 +1525,7 @@ def _write_git_hook(hook_path: str, body: str, force: bool) -> int {
 
 impl `test(
     target: str = "",
-    paths: list = [],
+    paths: list[str] = [],
     test_name: str = "",
     filter: str = "",
     xit: bool = False,
@@ -1544,7 +1535,7 @@ impl `test(
     pct_range: str = "",
     resume: bool = False,
     verbose: bool = False,
-    ignore: (list | None) = None,
+    ignore: (list[str] | None) = None,
     jobs: str = ""
 ) -> int {
     import os;
@@ -1756,10 +1747,10 @@ impl grammar(output: str = "", strict: bool = False) -> int {
 }
 
 def _iter_jac_files(
-    paths: list, ignore_list: (list | None) = None, include_annex: bool = True
+    paths: list[str], ignore_list: (list[str] | None) = None, include_annex: bool = True
 ) -> tuple[list[str], bool] {
     import os;
-    ignore_list = ignore_list or [];
+    ignore_list: list[str] = ignore_list or [];
     result: list[str] = [];
     explicit: set[str] = set();
     had_errors = False;
@@ -1818,7 +1809,7 @@ def _drop_covered_annexes(files: list[str], explicit: set[str]) -> list[str] {
     return kept;
 }
 
-def _normalize_ignore_patterns(ignore: list) -> list {
+def _normalize_ignore_patterns(ignore: list[str]) -> list[str] {
     import from jaclang.project.source { normalize_exclude_patterns }
     return normalize_exclude_patterns(ignore);
 }
@@ -1859,7 +1850,7 @@ def _drop_git_ignored(paths: list[str]) -> list[str] {
 }
 
 
-def _should_ignore(file_path: str, ignore_patterns: list) -> bool {
+def _should_ignore(file_path: str, ignore_patterns: list[str]) -> bool {
     import from jaclang.project.source { path_matches_exclude }
     return path_matches_exclude(file_path, ignore_patterns);
 }

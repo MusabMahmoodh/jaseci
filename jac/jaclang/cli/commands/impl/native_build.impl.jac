@@ -307,17 +307,8 @@ impl native_build(
     _opt_level = int(options.opt_level or 0);
     _dump_path = options.dump_ir_path or "";
 
-    if _opt_level > 0 {
-        pto = llvm.create_pipeline_tuning_options(speed_level=_opt_level);
-        pb = llvm.create_pass_builder(target_machine, pto);
-        assert isinstance(pb, llvm.PassBuilder);
-        opt_mpm = pb.getModulePassManager();
-        assert isinstance(opt_mpm, llvm.ModulePassManager);
-        if not shared {
-            opt_mpm.add_internalize_pass();
-        }
-        opt_mpm.run(mod, pb);
-    }
+    import from jaclang.compiler.backends.native.shared_emit { optimize_native_module }
+    optimize_native_module(mod, target_machine, _opt_level, internalize=not shared);
 
     if _dump_path {
         with open(_dump_path, "w") as _df {
@@ -548,7 +539,9 @@ def _musl_lib_dir(triple: str) -> (str | None) {
 }
 
 
-def _collect_musl_static(obj_bytes: bytes, triple: str) -> (tuple | None) {
+def _collect_musl_static(
+    obj_bytes: bytes, triple: str
+) -> (tuple[list[bytes], list[bytes]] | None) {
     import os;
     import from jaclang.compiler.backends.native.linker_common {
         select_ar_members,

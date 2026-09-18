@@ -5,6 +5,7 @@ coverage, syntax error handling, JSX, client keyword, anonymous abilities,
 and micro suite.
 """
 
+import from jaclang.compiler.frontend.roles { Kid }
 import inspect;
 import from jaclang.compiler.tools.treeprinter { print_ast_tree }
 import io;
@@ -80,7 +81,6 @@ test "a comprehension iterable is any operator expression short of the ternary" 
     assert len(compr) == 1;
     assert isinstance(compr[0].collection, uni.BinaryExpr) , type(compr[0].collection);
 }
-
 
 test "staticmethod checks out" {
     (module, had_error) = rd_parse(load_fixture("staticcheck.jac"), "");
@@ -626,8 +626,8 @@ test "bracket filter trailer produces FilterCompr AST" {
         if isinstance(nd, uni.FilterCompr) {
             return nd;
         }
-        if hasattr(nd, "kid") {
-            for k in nd.kid {
+        if isinstance(nd, uni.UniNode) {
+            for k in [nd->:Kid:->] {
                 if k is not None {
                     result = find_fc(k);
                     if result is not None {
@@ -724,8 +724,8 @@ test "typed edge ref produces FilterCompr with compares" {
         if isinstance(nd, uni.FilterCompr) and nd.compares {
             return nd;
         }
-        if hasattr(nd, "kid") {
-            for k in nd.kid {
+        if isinstance(nd, uni.UniNode) {
+            for k in [nd->:Kid:->] {
                 if k is not None {
                     result = find_filter_compr_with_compares(k);
                     if result is not None {
@@ -754,7 +754,7 @@ test "decorated class in code block parses as archetype" {
         if isinstance(nd, uni.Archetype) {
             results.append(nd);
         }
-        for k in (nd.kid) {
+        for k in ([nd->:Kid:->]) {
             results.extend(collect(k));
         }
         return results;
@@ -780,13 +780,13 @@ test "docstring attaches to all member types inside archetype body" {
     (mod, err) = rd_parse(load_fixture("docstring_with_entry.jac"), "");
     assert not err , "Parser reported errors for docstrings on archetype members";
 
-    def collect_doc_nodes(nd: uni.UniNode) -> list {
-        results: list = [];
+    def collect_doc_nodes(nd: uni.UniNode) -> list[any] {
+        results: list[any] = [];
         if isinstance(nd, (uni.ArchHas, uni.Ability, uni.ModuleCode, uni.Archetype))
             and nd.doc is not None {
             results.append(nd);
         }
-        for k in nd.kid {
+        for k in [nd->:Kid:->] {
             results.extend(collect_doc_nodes(k));
         }
         return results;
@@ -839,7 +839,7 @@ test "parser core sources are foreign-free" {
     core = (pkg / "parser.jac").read_text(encoding="utf-8")
         + (pkg / "impl" / "parser.impl.jac").read_text(encoding="utf-8");
     banned = [
-        "passes.transform",
+        "passes.context",
         "CodeLocInfo",
         "JacProgram",
         "compiler.frontend.diagnostics",

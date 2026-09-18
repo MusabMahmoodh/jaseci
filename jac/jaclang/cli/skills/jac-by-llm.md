@@ -79,7 +79,7 @@ Env vars take precedence over `api_key` in `jac.toml`; `BYLLM_DEFAULT_MODEL=...`
 ## Multi-turn chat & streaming
 
 ```jac
-glob history: list[dict] = [];
+glob history: list[dict[str, any]] = [];
 def chat(message: str) -> str by llm(
     conversation=history,                        # caller-owned list; byLLM appends each turn IN PLACE as plain dicts
     system_prompt="You are a terse assistant."   # EXTENDS the base/system default - never replaces it
@@ -132,6 +132,26 @@ def describe_clip(v: Video) -> str by llm();
 # Call as parse_receipt(Image("receipt.jpg")) - Image also accepts URLs, raw bytes, PIL images.
 # Video(path="clip.mp4", fps=1): fps = frames sampled/sec; needs `jac install 'byllm[video]'`.
 # Requires a vision-capable model (e.g. gpt-4o, claude-sonnet-4-6).
+```
+
+`Image` is also a RETURN type, which makes the call an image-generation call:
+
+```jac
+import from jaclang.byllm.lib { Image, Model }
+
+glob painter = Model(model_name="dall-e-3");
+
+def draw_poster(subject: str) -> Image by painter();         # one image
+def draw_variants(subject: str) -> list[Image] by painter(n=3);
+
+# Generation options forwarded when set: n, size, quality, style, response_format,
+# user, timeout. response_format defaults to "b64_json", so the returned Image
+# carries the bytes as a data url rather than an expiring provider url.
+# system_prompt is prepended to the prompt; byLLM's built-in chat persona is
+# dropped for an image return so it cannot steer the image model.
+# Needs an image model, not a chat model. tools= and stream= raise
+# ConfigurationError, and an Image/Video argument cannot be sent with an Image
+# return (no image-editing path yet).
 ```
 
 ## Pitfalls

@@ -1,3 +1,4 @@
+import from jaclang.compiler.frontend.roles { Kid }
 import os;
 import json;
 import struct;
@@ -29,11 +30,13 @@ import from jaclang.compiler.types.types {
     AnyType,
     ClassDetailsShared,
     ClassType,
+    EnumMemberInfo,
     EnumMemberType,
     FunctionType,
     ModuleType,
     NeverType,
     OverloadedType,
+    Parameter,
     TypeBase,
     TypeVarType,
     UnionType,
@@ -244,7 +247,7 @@ def metaclass_of_scope(scope: UniScopeNode, evaluator: any) -> (TypeBase | None)
     if not isinstance(scope, Archetype) {
         return None;
     }
-    for kid in scope.kid {
+    for kid in [scope->:Kid:->] {
         if (
             isinstance(kid, KWPair)
             and kid.key is not None
@@ -790,7 +793,7 @@ obj CatalogWriter {
                 );
             }
             if isinstance(t, FunctionType) {
-                params: list = [];
+                params: list[tuple[str, int, int, any, bool, bool, bool, bool]] = [];
                 for p in (t.parameters or []) {
                     params.append(
                         (
@@ -888,8 +891,8 @@ obj CatalogWriter {
         }
     }
 
-    def _types_ident(ts: (list | None)) -> tuple {
-        out: list = [];
+    def _types_ident(ts: (list[TypeBase] | None)) -> tuple[any, ...] {
+        out: list[any] = [];
         for x in (ts or []) {
             out.append(self._type_ident(x) if x is not None else -1);
         }
@@ -1233,7 +1236,7 @@ obj CatalogWriter {
                 tps.append(tv);
             }
             put_refs(out, self.ref_types(tps));
-            params = t.parameters or [];
+            params: list[Parameter] = t.parameters or [];
             put_uvar(out, len(params));
             for p in params {
                 put_uvar(out, self.sid(p.name or ""));
@@ -1414,26 +1417,26 @@ obj CatalogWriter {
         }
         put_refs(out, self.ref_types(tps));
         put_refs(out, self.ref_types(sh.base_classes));
-        fields = sh.typeddict_fields or {};
+        fields: dict[str, TypeBase] = sh.typeddict_fields or {};
         put_uvar(out, len(fields));
         for (fname, ftype) in fields.items() {
             put_uvar(out, self.sid(fname));
             put_ref(out, self.ref_type(ftype));
         }
         put_ref(out, self.ref_type(sh.enum_value_type));
-        members = sh.enum_members or {};
+        members: dict[str, EnumMemberInfo] = sh.enum_members or {};
         put_uvar(out, len(members));
         for (mname, info) in members.items() {
             put_uvar(out, self.sid(mname));
             put_ref(out, self.ref_type(info.value_type));
             self.put_literal(out, info.literal_value);
         }
-        ct_params = sh.ct_params or [];
+        ct_params: list[str] = sh.ct_params or [];
         put_uvar(out, len(ct_params));
         for name in ct_params {
             put_uvar(out, self.sid(name));
         }
-        derived = sh._derived_special_types or {};
+        derived: dict[str, ClassType] = sh._derived_special_types or {};
         put_uvar(out, len(derived));
         for (dname, dtype) in derived.items() {
             put_uvar(out, self.sid(dname));
@@ -1496,7 +1499,7 @@ obj CatalogWriter {
         ambient_sid = self.sid(json.dumps(ambient_json, sort_keys=True));
 
         recblob = bytearray();
-        def lay(recs: list) -> bytes {
+        def lay(recs: list[bytes | None]) -> bytes {
             offsets: list[bytes] = [];
             for r in recs {
                 offsets.append(len(recblob).to_bytes(4, "little"));
