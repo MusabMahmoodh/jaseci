@@ -91,6 +91,35 @@ def _as_item_list(value: any) -> list[any] {
     return [value];
 }
 
+def is_upload_type(target: any) -> bool {
+    if target is None {
+        return False;
+    }
+    if isinstance(target, type) {
+        return issubclass(target, UploadFile) or target.__name__ == 'UploadFile';
+    }
+    origin = get_origin(target);
+    if origin is list or origin is Union or origin is UnionType {
+        return any([is_upload_type(arg) for arg in get_args(target)]);
+    }
+    return False;
+}
+
+def _without_none(target: any) -> any {
+    origin = get_origin(target);
+    if origin is Union or origin is UnionType {
+        args = [
+            arg
+            for arg in get_args(target)
+            if arg is not type(None)
+        ];
+        if len(args) == 1 {
+            return args[0];
+        }
+    }
+    return target;
+}
+
 def coerce_value(value: any, target: any = None) -> any {
     if isinstance(value, UploadFile) {
         return value;
@@ -243,7 +272,7 @@ def _extract_raw(
     if param.kind == ParameterType.FILE {
         files = request.upload_files.get(param.name, []);
         if files {
-            target = _param_target(param);
+            target = _without_none(_param_target(param));
             if get_origin(target) is list {
                 return (True, files);
             }
