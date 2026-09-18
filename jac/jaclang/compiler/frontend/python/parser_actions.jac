@@ -1,4 +1,7 @@
-import from jaclang.compiler.frontend.python.syntax_error { syntax_failure }
+import from jaclang.compiler.frontend.python.syntax_error {
+    syntax_failure,
+    source_line_bytes
+}
 # P0.7 parser action helpers (PLAN.md).
 #
 # Lowers CPython grammar actions (_PyAST_*, _PyPegen_*) into ast_nodes.jac
@@ -14,6 +17,7 @@ import from jaclang.runtime.python.objects {
     PyFloat,
     PyComplex,
     PyEllipsis,
+    PyNoneType,
     py_none
 }
 import from jaclang.compiler.frontend.python.ast_nodes {
@@ -104,13 +108,26 @@ import from jaclang.compiler.frontend.python.ast_nodes {
     TemplateStr,
     Interpolation,
     FormattedValue,
+    Lambda,
+    GeneratorExp,
+    Yield,
+    YieldFrom,
+    Await,
+    ListComp,
+    SetComp,
+    DictComp,
+    Dict,
+    Set,
+    NamedExpr,
 }
 import from jaclang.compiler.frontend.python.peg_runtime {
     peg_parser,
     peg_token,
     peg_has_error,
-    peg_raise_syntax_error
+    peg_raise_syntax_error,
+    peg_raise_syntax_error_on_token
 }
+import from jaclang.compiler.frontend.python.token_model { mk_diag, tok_loc }
 
 obj pa_cmpop_expr_pair {
     has cmpop: cmpop,
@@ -1804,6 +1821,33 @@ def pa_raise_syntax(p: peg_parser, on_next: bool, message: str) -> None {
 def pa_raise_syntax_known_expr(
     p: peg_parser, on_next: bool, `node: object | None, message: str
 ) -> None {
+    if peg_has_error(p) {
+        return None;
+    }
+    if isinstance(`node, expr) {
+        p.error = mk_diag(
+            "SyntaxError",
+            message.replace("%s", pa_get_expr_name(`node))
+                if "%s" in message
+                else message,
+            tok_loc(
+                lineno=`node.lineno,
+                end_lineno=`node.end_lineno
+                    if `node.end_lineno is not None
+                    else `node.lineno,
+                col_offset=`node.col_offset,
+                end_col_offset=`node.end_col_offset
+                    if `node.end_col_offset is not None
+                    else `node.col_offset
+            ),
+            p.filename
+        );
+        p.error_indicator = True;
+        return None;
+    }
+    if isinstance(`node, peg_token) {
+        return peg_raise_syntax_error_on_token(p, `node, message);
+    }
     return pa_raise_syntax(p, on_next, message);
 }
 
@@ -1931,7 +1975,88 @@ def pa_ensure_real(p: peg_parser, value: expr) -> expr | None {
 }
 
 def pa_get_expr_name(`node: expr) -> str {
-    return "";
+    if isinstance(`node, Attribute) {
+        return "attribute";
+    }
+    if isinstance(`node, Subscript) {
+        return "subscript";
+    }
+    if isinstance(`node, Starred) {
+        return "starred";
+    }
+    if isinstance(`node, Name) {
+        return "name";
+    }
+    if isinstance(`node, List) {
+        return "list";
+    }
+    if isinstance(`node, Tuple) {
+        return "tuple";
+    }
+    if isinstance(`node, Lambda) {
+        return "lambda";
+    }
+    if isinstance(`node, Call) {
+        return "function call";
+    }
+    if isinstance(`node, (BoolOp, BinOp, UnaryOp)) {
+        return "expression";
+    }
+    if isinstance(`node, GeneratorExp) {
+        return "generator expression";
+    }
+    if isinstance(`node, (Yield, YieldFrom)) {
+        return "yield expression";
+    }
+    if isinstance(`node, Await) {
+        return "await expression";
+    }
+    if isinstance(`node, ListComp) {
+        return "list comprehension";
+    }
+    if isinstance(`node, SetComp) {
+        return "set comprehension";
+    }
+    if isinstance(`node, DictComp) {
+        return "dict comprehension";
+    }
+    if isinstance(`node, Dict) {
+        return "dict literal";
+    }
+    if isinstance(`node, Set) {
+        return "set display";
+    }
+    if isinstance(`node, (JoinedStr, FormattedValue)) {
+        return "f-string expression";
+    }
+    if isinstance(`node, (TemplateStr, Interpolation)) {
+        return "t-string expression";
+    }
+    if isinstance(`node, Constant) {
+        value = `node.value;
+        if isinstance(value, PyNoneType) {
+            return "None";
+        }
+        if isinstance(value, PyBool) {
+            return "True" if value.val else "False";
+        }
+        if isinstance(value, PyEllipsis) {
+            return "ellipsis";
+        }
+        return "literal";
+    }
+    if isinstance(`node, Compare) {
+        return "comparison";
+    }
+    if isinstance(`node, IfExp) {
+        return "conditional expression";
+    }
+    if isinstance(`node, NamedExpr) {
+        return "named expression";
+    }
+    raise syntax_failure(
+        "unexpected expression in assignment", kind="SystemError", lineno=`node.lineno
+    );
 }
 
 def pa_get_last_comprehension_item(`node: object) -> object {
@@ -2182,23 +2307,7 @@ def interpolation_text(
         end_col = format.col_offset;
     }
     if not p.source_lines {
-        data = p.tok.source.encode("utf-8");
-        start_byte = 0;
-        end_byte = 0;
-        while end_byte < len(data) {
-            byte = data[end_byte];
-            end_byte += 1;
-            if byte == 13 and end_byte < len(data) and data[end_byte] == 10 {
-                end_byte += 1;
-            }
-            if byte == 10 or byte == 13 {
-                p.source_lines.append(data[start_byte:end_byte]);
-                start_byte = end_byte;
-            }
-        }
-        if start_byte < len(data) {
-            p.source_lines.append(data[start_byte:]);
-        }
+        p.source_lines = source_line_bytes(p.tok.data);
     }
     lines = p.source_lines;
     text = b"";

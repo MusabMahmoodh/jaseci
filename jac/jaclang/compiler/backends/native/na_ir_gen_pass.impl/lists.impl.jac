@@ -344,7 +344,7 @@ impl NaIRGenPass._codegen_list_val(nd: uni.ListVal) -> (ir.Value | None) {
         }
         helpers = self.list_helpers.get(elem_type_name);
         if helpers is not None {
-            _empty_loc = f"{os.path.basename(self.ir_in.loc.mod_path)}:{nd.loc.first_line
+            _empty_loc = f"{os.path.basename(self.module.loc.mod_path)}:{nd.loc.first_line
                 if nd.loc
                 else 0}";
 
@@ -368,13 +368,13 @@ impl NaIRGenPass._codegen_list_val(nd: uni.ListVal) -> (ir.Value | None) {
 
     _first_spread = self._spread_operand(nd.values[0]);
     first_val: (ir.Value | None) = None;
-    _first_src_info: (dict | None) = None;
+    _first_src_info: (dict[str, any] | None) = None;
     if _first_spread is not None {
         _first_src_info = self._container_src_info(
             self._str_norm_optional(self._codegen_expr(_first_spread))
         );
         if _first_src_info is None {
-            self.emit(
+            self.ctx.emit(
                 E5092,
                 node_override=nd.values[0],
                 kind="expression",
@@ -390,7 +390,7 @@ impl NaIRGenPass._codegen_list_val(nd: uni.ListVal) -> (ir.Value | None) {
         }
         first_val = self._box_value_tuple(
             first_val,
-            loc=f"{os.path.basename(self.ir_in.loc.mod_path)}:{nd.loc.first_line
+            loc=f"{os.path.basename(self.module.loc.mod_path)}:{nd.loc.first_line
                 if nd.loc
                 else 0}"
         );
@@ -442,7 +442,7 @@ impl NaIRGenPass._codegen_list_val(nd: uni.ListVal) -> (ir.Value | None) {
     helpers = self.list_helpers[elem_type_name];
     i8p = ir.IntType(8).as_pointer();
 
-    _list_new_loc = f"{os.path.basename(self.ir_in.loc.mod_path)}:{nd.loc.first_line
+    _list_new_loc = f"{os.path.basename(self.module.loc.mod_path)}:{nd.loc.first_line
         if nd.loc
         else 0}";
     list_val = self._rc_call_with_ctx(
@@ -452,7 +452,7 @@ impl NaIRGenPass._codegen_list_val(nd: uni.ListVal) -> (ir.Value | None) {
         self._nogc_stamp_elem_drops(list_val, self._nogc_type_arg_mangles(nd));
     }
 
-    _linit_loc = f"{os.path.basename(self.ir_in.loc.mod_path)}:{nd.loc.first_line
+    _linit_loc = f"{os.path.basename(self.module.loc.mod_path)}:{nd.loc.first_line
         if nd.loc
         else 0}";
     if first_val is None {
@@ -482,20 +482,16 @@ impl NaIRGenPass._codegen_list_val(nd: uni.ListVal) -> (ir.Value | None) {
         ) {
             return list_val;
         }
-        append_val = self._coerce_container_element(first_val, helpers["elem_type"]);
         if elem_type_name == "ptr" and isinstance(first_val.type, ir.PointerType) {
-            append_val = self.builder.bitcast(append_val, i8p, name="elem.cast");
+            appended = self.builder.bitcast(first_val, i8p, name="elem.cast");
         } else {
-            append_val = self._coerce_type(append_val, helpers["elem_type"]);
+            first_val = self._coerce_container_element(first_val, helpers["elem_type"]);
+            appended = self._coerce_type(first_val, helpers["elem_type"]);
         }
         self._rc_call_with_ctx(
-            helpers["append"], [list_val, append_val], op="list_init", loc=_linit_loc
+            helpers["append"], [list_val, appended], op="list_init", loc=_linit_loc
         );
-        if isinstance(first_val.type, ir.PointerType)
-            and self._is_owned(first_val)
-            and self._gc_mode() != "none" {
-            self._emit_rc_release_simple(first_val, op="list_init", loc=_linit_loc);
-        }
+        self._release_after_store(first_val, op="list_init");
     }
 
     for i in range(1, len(nd.values)) {
@@ -505,7 +501,7 @@ impl NaIRGenPass._codegen_list_val(nd: uni.ListVal) -> (ir.Value | None) {
                 self._str_norm_optional(self._codegen_expr(_spread_op))
             );
             if _src_info is None {
-                self.emit(
+                self.ctx.emit(
                     E5092,
                     node_override=nd.values[i],
                     kind="expression",
@@ -534,7 +530,7 @@ impl NaIRGenPass._codegen_list_val(nd: uni.ListVal) -> (ir.Value | None) {
         }
         val = self._str_norm_optional(self._codegen_expr(nd.values[i]));
         if val is None {
-            self.emit(
+            self.ctx.emit(
                 E5092,
                 node_override=nd.values[i],
                 kind="expression",
@@ -552,7 +548,6 @@ impl NaIRGenPass._codegen_list_val(nd: uni.ListVal) -> (ir.Value | None) {
                 val, self._pending_list_elem_struct.pointee
             );
         }
-        _orig_val = val;
         val = self._box_value_tuple(val, loc=_linit_loc);
         if _clos_elem is not None
             and _decl_elem is not None
@@ -563,26 +558,21 @@ impl NaIRGenPass._codegen_list_val(nd: uni.ListVal) -> (ir.Value | None) {
         if val is None {
             return None;
         }
-        _boxed_val = val;
         if self._reject_ptr_into_raw_slot(
             nd, val, helpers["elem_type"], "list element"
         ) {
             return list_val;
         }
         if elem_type_name == "ptr" and isinstance(val.type, ir.PointerType) {
-            val = self.builder.bitcast(val, i8p, name="elem.cast");
+            appended = self.builder.bitcast(val, i8p, name="elem.cast");
         } else {
             val = self._coerce_container_element(val, helpers["elem_type"]);
+            appended = val;
         }
         self._rc_call_with_ctx(
-            helpers["append"], [list_val, val], op="list_init", loc=_linit_loc
+            helpers["append"], [list_val, appended], op="list_init", loc=_linit_loc
         );
-
-        if isinstance(_boxed_val.type, ir.PointerType)
-            and self._is_owned(_boxed_val)
-            and self._gc_mode() != "none" {
-            self._emit_rc_release_simple(_boxed_val, op="list_init", loc=_linit_loc);
-        }
+        self._release_after_store(val, op="list_init");
     }
 
     return list_val;
@@ -696,7 +686,7 @@ impl NaIRGenPass._codegen_index_set(
     elem_type = helpers["elem_type"];
 
     _lset_ctx_loc = getattr(
-        value, 'jac_loc', f"{os.path.basename(self.ir_in.loc.mod_path)}:0"
+        value, 'jac_loc', f"{os.path.basename(self.module.loc.mod_path)}:0"
     );
 
     if self._reject_ptr_into_raw_slot(
@@ -704,20 +694,14 @@ impl NaIRGenPass._codegen_index_set(
     ) {
         return;
     }
-    _orig_value = value;
-    _val_was_owned = self._is_owned(value);
-    value = self._coerce_type(value, elem_type);
+    value = self._coerce_container_element(value, elem_type);
     self._rc_call_with_ctx(
-        helpers["set"], [target_val, index_val, value], op="list_set", loc=_lset_ctx_loc
+        helpers["set"],
+        [target_val, index_val, self._coerce_type(value, elem_type)],
+        op="list_set",
+        loc=_lset_ctx_loc
     );
-
-    if (
-        isinstance(_orig_value.type, ir.PointerType)
-        and _val_was_owned
-        and self._elem_kind(elem_type) != "raw"
-    ) {
-        self._emit_rc_release_simple(_orig_value, op="list_set", loc=_lset_ctx_loc);
-    }
+    self._release_after_store(value, op="list_set");
 }
 
 impl NaIRGenPass._emit_aos_list_helpers(tname: str) -> ir.Type {
@@ -910,7 +894,9 @@ impl NaIRGenPass._emit_aos_list_helpers(tname: str) -> ir.Type {
     _d_selfp = b.bitcast(drop_fn.args[0], _stp, name="d.self");
     _d_fields = self._emit_struct_drop_fields_fn(tname);
 
-    def _aos_drop_elem(bl: ir.IRBuilder, i: ir.Value, elem_ptrs: list) -> ir.IRBuilder {
+    def _aos_drop_elem(
+        bl: ir.IRBuilder, i: ir.Value, elem_ptrs: list[ir.Value]
+    ) -> ir.IRBuilder {
         if _d_fields is not None {
             bl.call(_d_fields, [bl.bitcast(elem_ptrs[0], i8p, name="d.elem8")]);
         }
@@ -956,7 +942,6 @@ impl NaIRGenPass._aos_elem_struct(type_key: str) -> (ir.Type | None) {
     _h = self.list_helpers.get(type_key);
     return _h["elem_struct"] if _h is not None else None;
 }
-
 
 impl NaIRGenPass._container_is_view(nd: uni.UniNode) -> bool {
     _p = nd.parent;

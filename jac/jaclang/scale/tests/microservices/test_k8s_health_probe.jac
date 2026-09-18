@@ -27,7 +27,7 @@ import from jaclang.scale.runtime.gateway.microservice_gateway { MicroserviceGat
 import from jaclang.scale.runtime.orchestrator.process_manager { ServiceProcessManager }
 
 """Serve a real /healthz over HTTP: http.server answering GET /healthz -> 200."""
-def _real_healthz_server(port: int) -> tuple {
+def _real_healthz_server(port: int) -> tuple[any, ...] {
     d = mkdtemp();
     (Path(d) / "healthz").write_text("ok");
     proc = subprocess.Popen(
@@ -84,6 +84,22 @@ test "probe marks a live upstream healthy and a ghost unhealthy" {
             helper.`wait(timeout=5);
         }
     }
+}
+
+test "interceptor-routed entry is trusted, not probed" {
+    reg = ServiceRegistry();
+    unreachable_port = get_free_port();
+    `entry = _entry("worker", "/worker", f"http://127.0.0.1:{unreachable_port}");
+    `entry.host_override = "worker.default.svc.cluster.local";
+    reg.register(`entry);
+    pm = ServiceProcessManager(registry=reg);
+    for _ in range(5) {
+        pm.check_all_health();
+    }
+    assert reg.entries["worker"].status == ServiceStatus.HEALTHY , (
+        f"host_override entry demoted despite never being probed: "
+        f"{reg.entries['worker'].status}"
+    );
 }
 
 test "healthz roll-up is computed, not a literal" {
@@ -146,7 +162,7 @@ test "gateway-only mode does not report an unserved route healthy" {
         stderr=subprocess.DEVNULL
     );
     try {
-        body: dict = {};
+        body: dict[str, any] = {};
         for _ in range(120) {
             if proc.poll() is not None {
                 raise RuntimeError(f"gateway exited early: {proc.returncode}");

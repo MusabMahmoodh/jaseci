@@ -336,25 +336,17 @@ def prepare_wasm_module(llvm_ir_str: str) -> tuple[ModuleRef, TargetMachine, boo
     assert isinstance(target, llvm.Target);
     tm = target.create_target_machine(opt=2);
     assert isinstance(tm, llvm.TargetMachine);
-    pto = llvm.create_pipeline_tuning_options(speed_level=2);
-    pb = llvm.create_pass_builder(tm, pto);
-    assert isinstance(pb, llvm.PassBuilder);
-    mpm = pb.getModulePassManager();
-    assert isinstance(mpm, llvm.ModulePassManager);
-    mpm.run(mod, pb);
+    import from jaclang.compiler.backends.native.shared_emit { optimize_native_module }
+    optimize_native_module(mod, tm, 2);
     if libc_linked {
         _internalize_late_bound(mod);
-        pb2 = llvm.create_pass_builder(tm, pto);
-        assert isinstance(pb2, llvm.PassBuilder);
-        mpm2 = pb2.getModulePassManager();
-        assert isinstance(mpm2, llvm.ModulePassManager);
-        mpm2.run(mod, pb2);
+        optimize_native_module(mod, tm, 2);
     }
     return (mod, tm, libc_linked);
 }
 
 def emit_wasm_from_ir(
-    llvm_ir_str: str, export_funcs: list = [], app_imports: (set | None) = None
+    llvm_ir_str: str, export_funcs: list[str] = [], app_imports: (set | None) = None
 ) -> bytes {
     import from jaclang.compiler.backends.native.wasm_linker { WasmLinker }
     import from jaclang.compiler.backends.native.wasm_host_abi {
@@ -433,7 +425,7 @@ def _assert_ir_rc_free(llvm_ir_str: str, file_path: str) {
     }
 }
 
-def compile_to_wasm(file_path: str, export_funcs: list = []) -> bytes {
+def compile_to_wasm(file_path: str, export_funcs: list[str] = []) -> bytes {
     import from jaclang.compiler.driver.pipeline { build_wasm }
     import from jaclang.runtime.runtime { JacRuntime }
     return build_wasm(JacRuntime.get_program(), file_path, export_funcs);

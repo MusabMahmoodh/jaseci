@@ -12,6 +12,7 @@ import os;
 import subprocess;
 import sys;
 import tempfile;
+import from tests.support { cache_env }
 import from tests.support { JAC_ROOT }
 
 glob PROG = (
@@ -35,10 +36,10 @@ try:
 except SystemExit as exc:
     raise SystemExit(int(exc.code) if isinstance(exc.code, int) else 1)
 """;
-    env = dict(os.environ);
+    env: dict[str, str] = dict(os.environ);
     env["JAC_LLVM_SHIM"] = "none";
     env["HOME"] = work;
-    env["XDG_CACHE_HOME"] = os.path.join(work, "cache");
+    env.update(cache_env(os.path.join(work, "cache")));
     proc = subprocess.run(
         [sys.executable, "-c", script],
         cwd=JAC_ROOT,

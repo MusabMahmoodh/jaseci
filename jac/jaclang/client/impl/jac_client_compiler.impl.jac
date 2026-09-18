@@ -3,7 +3,7 @@ import from jaclang.cli.console { console }
 def _jac_client_plugin_dir -> Path {
     import importlib;
     client_pkg = importlib.import_module("jaclang.client");
-    paths = list(getattr(client_pkg, "__path__", []) or []);
+    paths: list[str] = list(getattr(client_pkg, "__path__", []) or []);
     if not paths {
         raise ClientBundleError(
             "jaclang.client not found; cannot locate D9 client runtime"
@@ -577,6 +577,7 @@ impl JacClientCompiler._scan_and_compile_pages(
     }
     self._check_entry_renders_routes(entry_manifest);
     self._route_scanner = scanner;
+    self._warn_unrouted_pages(scanner);
     source_root = self.project_dir;
     for page_file in scanner.get_page_files() {
         self.emit_dependencies(
@@ -617,6 +618,15 @@ impl JacClientCompiler._warn_pages_without_routes(
     }
 }
 
+impl JacClientCompiler._warn_unrouted_pages(
+    self: JacClientCompiler, scanner: RouteScanner
+) -> None {
+    import from jaclang.client.route_scanner { describe_unrouted_pages }
+    for line in describe_unrouted_pages(scanner.get_unrouted_files()) {
+        console.warning(line);
+    }
+}
+
 impl JacClientCompiler.rescan_pages(self: JacClientCompiler) -> bool {
     scanner = RouteScanner(self._app_root(), route_exports_of=resolve_route_exports);
     if not scanner.has_pages_dir() {
@@ -628,6 +638,7 @@ impl JacClientCompiler.rescan_pages(self: JacClientCompiler) -> bool {
         return False;
     }
     self._route_scanner = scanner;
+    self._warn_unrouted_pages(scanner);
 
     for page_file in scanner.get_page_files() {
         if self._output_path_for(page_file, self.project_dir).exists() {

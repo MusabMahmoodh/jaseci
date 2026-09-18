@@ -14,7 +14,11 @@ impl NaIRGenPass._elem_kind(elem_type: ir.Type) -> str {
     return "raw";
 }
 
-impl NaIRGenPass._container_layout_dense(data_types: list) -> dict {
+impl NaIRGenPass._is_reference_type(ty: ir.Type) -> bool {
+    return self._elem_kind(ty) != "raw" or self._opt_ptr_payload_of(ty) is not None;
+}
+
+impl NaIRGenPass._container_layout_dense(data_types: list[ir.Type]) -> dict[str, any] {
     _fields = [(_i + 2, _dt) for (_i, _dt) in enumerate(data_types)];
     return {
         "kind": "dense",
@@ -29,7 +33,7 @@ impl NaIRGenPass._container_layout_dense(data_types: list) -> dict {
 
 impl NaIRGenPass._container_layout_hash(
     key_type: ir.Type, val_type: (ir.Type | None)
-) -> dict {
+) -> dict[str, any] {
     _fields = [(2, key_type)];
     _kinds = [self._elem_kind(key_type)];
     _next = 3;
@@ -188,7 +192,7 @@ impl NaIRGenPass._emit_elem_slot_drop(
     b: ir.IRBuilder,
     fn: ir.Function,
     cont: ir.Value,
-    layout: dict,
+    layout: dict[str, any],
     data_index: int,
     val: ir.Value
 ) -> ir.IRBuilder {
@@ -231,7 +235,7 @@ impl NaIRGenPass._reject_ptr_into_raw_slot(
         return False;
     }
     if nd is not None {
-        self.emit(
+        self.ctx.emit(
             E5092,
             node_override=nd,
             kind="expression",
@@ -239,7 +243,7 @@ impl NaIRGenPass._reject_ptr_into_raw_slot(
             help_text="A pointer value cannot be stored into a scalar container slot: the container would hold a raw address invisible to memory management. Declare the container with a matching element type, or mix element types so it lowers to tagged storage."
         );
     } else {
-        self.emit(E5092, kind="expression", name=what);
+        self.ctx.emit(E5092, kind="expression", name=what);
     }
     return True;
 }
@@ -253,7 +257,9 @@ impl NaIRGenPass._spread_operand(nd: (uni.UniNode | None)) -> (uni.Expr | None) 
     return None;
 }
 
-impl NaIRGenPass._container_src_info(val: (ir.Value | None)) -> (dict | None) {
+impl NaIRGenPass._container_src_info(
+    val: (ir.Value | None)
+) -> (dict[str, any] | None) {
     if val is None or not isinstance(val.type, ir.PointerType) {
         return None;
     }
@@ -287,7 +293,7 @@ impl NaIRGenPass._container_src_info(val: (ir.Value | None)) -> (dict | None) {
 }
 
 impl NaIRGenPass._spread_elem_storage(
-    src_info: dict, operand: (uni.Expr | None)
+    src_info: dict[str, any], operand: (uni.Expr | None)
 ) -> (ir.Type | None) {
     _erased = src_info["helpers"]["elem_type"];
     if src_info["kind"] != "list" or src_info["spec"] != "ptr" {
@@ -327,7 +333,7 @@ impl NaIRGenPass._reject_spread_slot_mismatch(
     if isinstance(src_elem, ir.PointerType) and isinstance(dest_elem, ir.PointerType) {
         return False;
     }
-    self.emit(
+    self.ctx.emit(
         E5092,
         node_override=nd,
         kind="expression",
@@ -339,9 +345,9 @@ impl NaIRGenPass._reject_spread_slot_mismatch(
 
 impl NaIRGenPass._emit_spread_copy(
     src: ir.Value,
-    src_helpers: dict,
+    src_helpers: dict[str, any],
     dest: ir.Value,
-    dest_helpers: dict,
+    dest_helpers: dict[str, any],
     dest_kind: str,
     loc: str
 ) -> None {
@@ -395,7 +401,9 @@ impl NaIRGenPass._emit_spread_copy(
     }
 }
 
-impl NaIRGenPass._container_managed_fields(layout: dict) -> list {
+impl NaIRGenPass._container_managed_fields(
+    layout: dict[str, any]
+) -> list[tuple[int, ir.Type, str]] {
     _kinds = layout["elem_kinds"];
     return [
         (fi, dt, _kinds[_j])
@@ -404,7 +412,7 @@ impl NaIRGenPass._container_managed_fields(layout: dict) -> list {
     ];
 }
 
-impl NaIRGenPass._container_struct_fields(layout: dict) -> list {
+impl NaIRGenPass._container_struct_fields(layout: dict[str, any]) -> list[ir.Type] {
     i64 = ir.IntType(64);
     _fields: list[ir.Type] = [i64, i64];
     for (_, _dt) in layout["data_fields"] {
@@ -427,10 +435,10 @@ impl NaIRGenPass._emit_live_slot_loop(
     fn: ir.Function,
     b: ir.IRBuilder,
     cont: ir.Value,
-    layout: dict,
+    layout: dict[str, any],
     tag: str,
     body_cb: Callable[..., ir.IRBuilder],
-    fields: (list | None) = None,
+    fields: (list[tuple[int, ir.Type]] | None) = None,
     reverse: bool = False
 ) -> ir.IRBuilder {
     i8 = ir.IntType(8);
@@ -520,7 +528,10 @@ impl NaIRGenPass._emit_live_slot_loop(
 }
 
 impl NaIRGenPass._emit_container_new_fn(
-    fn_name: str, container_ptr_type: ir.Type, layout: dict, dtor_fn: object = None
+    fn_name: str,
+    container_ptr_type: ir.Type,
+    layout: dict[str, any],
+    dtor_fn: object = None
 ) -> ir.Function {
     new_fnty = ir.FunctionType(container_ptr_type, []);
     new_fn = ir.Function(self.llvm_module, new_fnty, name=fn_name);
@@ -599,7 +610,7 @@ impl NaIRGenPass._container_type_name(dtor_fn: object) -> str {
 }
 
 impl NaIRGenPass._emit_container_trace_fn(
-    trace_fn_name: str, container_ptr_type: ir.Type, layout: dict
+    trace_fn_name: str, container_ptr_type: ir.Type, layout: dict[str, any]
 ) -> ir.Function {
     i8_ptr = ir.IntType(8).as_pointer();
     visitor_ptype = ir.FunctionType(ir.VoidType(), [i8_ptr]).as_pointer();
@@ -628,7 +639,9 @@ impl NaIRGenPass._emit_container_trace_fn(
     _managed = self._container_managed_fields(layout);
     _fields = [(fi, dt) for (fi, dt, _k) in _managed];
 
-    def _visit_slot(bl: ir.IRBuilder, i: ir.Value, elem_ptrs: list) -> ir.IRBuilder {
+    def _visit_slot(
+        bl: ir.IRBuilder, i: ir.Value, elem_ptrs: list[ir.Value]
+    ) -> ir.IRBuilder {
         for ep in elem_ptrs {
             bl = self._emit_elem_trace(bl, bl.load(ep, name="elem.val"), _vis);
         }
@@ -660,7 +673,7 @@ impl NaIRGenPass._emit_container_len_fn(
 }
 
 impl NaIRGenPass._emit_container_release_fn(
-    fn_name: str, container_ptr_type: ir.Type, layout: dict
+    fn_name: str, container_ptr_type: ir.Type, layout: dict[str, any]
 ) -> ir.Function {
     i32 = ir.IntType(32);
     i8_ptr = ir.IntType(8).as_pointer();
@@ -710,7 +723,7 @@ impl NaIRGenPass._emit_container_release_fn(
         b = ir.IRBuilder(rel_elems_bb);
 
         def _release_slot(
-            bl: ir.IRBuilder, i: ir.Value, elem_ptrs: list
+            bl: ir.IRBuilder, i: ir.Value, elem_ptrs: list[ir.Value]
         ) -> ir.IRBuilder {
             for _ep in elem_ptrs {
                 _ev = bl.load(_ep, name="elem.val.rel");
@@ -925,8 +938,11 @@ impl NaIRGenPass._emit_key_comparison(
 }
 
 impl NaIRGenPass._emit_rc_alloc_container(
-    b: ir.IRBuilder, container_ptr_type: ir.Type, layout: dict, initial_cap: int = 8
-) -> tuple {
+    b: ir.IRBuilder,
+    container_ptr_type: ir.Type,
+    layout: dict[str, any],
+    initial_cap: int = 8
+) -> tuple[ir.Value, ...] {
     i64 = ir.IntType(64);
     i32 = ir.IntType(32);
     i8_ptr = ir.IntType(8).as_pointer();
@@ -1049,7 +1065,7 @@ impl NaIRGenPass._emit_grow_array(
 
 impl NaIRGenPass._emit_rc_destructor_preamble(
     release_fn: ir.Function, ptr_type: ir.Type
-) -> tuple {
+) -> tuple[ir.IRBuilder, ir.Block] {
     i8_ptr = ir.IntType(8).as_pointer();
     entry_bb = release_fn.append_basic_block("entry");
     free_bb = release_fn.append_basic_block("do_free");
@@ -1114,13 +1130,13 @@ impl NaIRGenPass._tuple_box_release_fn(
             b.branch(rel_bb);
         }
         b = ir.IRBuilder(rel_bb);
-        for (idx, is_opt) in fields {
+        for idx in fields {
             fptr = b.gep(
                 release_fn.args[0],
                 [ir.Constant(i32, 0), ir.Constant(i32, idx)],
                 name=f"tup.f{idx}.p"
             );
-            if is_opt {
+            if self._opt_ptr_payload_of(struct_type.elements[idx]) is not None {
                 fptr = b.gep(
                     fptr,
                     [ir.Constant(i32, 0), ir.Constant(i32, 1)],
@@ -1178,17 +1194,16 @@ impl NaIRGenPass._tuple_box_trace_fn(
     b = ir.IRBuilder(entry_bb);
     _vis = b.bitcast(trace_fn.args[1], visitor_ptype, name="vis.fn");
     _obj = b.bitcast(trace_fn.args[0], struct_type.as_pointer(), name="obj.typed");
-    for (idx, is_opt) in fields {
+    for idx in fields {
         fptr = b.gep(
             _obj, [ir.Constant(i32, 0), ir.Constant(i32, idx)], name=f"tr.f{idx}.p"
         );
-        if is_opt {
+        if self._opt_ptr_payload_of(struct_type.elements[idx]) is not None {
             fptr = b.gep(
                 fptr, [ir.Constant(i32, 0), ir.Constant(i32, 1)], name=f"tr.f{idx}.pvp"
             );
         }
-        fval = b.load(fptr, name=f"tr.f{idx}");
-        b.call(_vis, [b.bitcast(fval, i8_ptr, name=f"tr.f{idx}.i8")]);
+        b = self._emit_elem_trace(b, b.load(fptr, name=f"tr.f{idx}"), _vis);
     }
     b.branch(done_bb);
     b = ir.IRBuilder(done_bb);
@@ -1222,6 +1237,12 @@ impl NaIRGenPass._emit_tuple_box_lifecycle(
 impl NaIRGenPass._coerce_container_element(
     value: ir.Value, element_type: ir.Type
 ) -> ir.Value {
+    if self._str_desc_ty is not None
+        and value.type == self._str_desc_ty
+        and element_type != value.type
+        and self._gc_mode() != "none" {
+        value = self._str_materialize(value);
+    }
     payload_type = self._opt_ptr_payload_of(value.type);
     if payload_type is not None and isinstance(element_type, ir.PointerType) {
         tag = self.builder.extract_value(value, 0, name="elem.optional.tag");

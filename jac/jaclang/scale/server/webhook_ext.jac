@@ -55,7 +55,7 @@ def header_param_name(header: str) -> str {
 
 obj WebhookExtension(ServerExtension) {
     has manager: (ApiKeyManager | None) = None,
-        _scheme_rate: dict = {},
+        _scheme_rate: dict[str, list[int]] = {},
         _system_user_id: str = '';
 
     def api_keys -> ApiKeyManager {
@@ -192,10 +192,11 @@ obj WebhookExtension(ServerExtension) {
             server.get_walkers()[walker_name], walker_kwargs, user_id
         );
         if isinstance(result, dict) and 'error' in result {
-            logger.error(
-                f"Webhook walker '{walker_name}' failed: "
-                f"{result.get('error')} {result.get('traceback') or ''}"
-            );
+            if result.get('error_code') != 'execution_error' {
+                logger.error(
+                    f"Webhook walker '{walker_name}' failed: {result.get('error')}"
+                );
+            }
             return _fail('EXECUTION_ERROR', 'Webhook processing failed', 500);
         }
         return TransportResponse.success(

@@ -52,11 +52,35 @@ def compile_na_inline(label: str, code: str) -> JacProgram {
 
 """Like `compile_na_inline`, but also hand back the compiled module so a
 granular demotion (epic #8201) is observable through the native layout."""
-def compile_na_inline_ir(label: str, code: str) -> tuple {
+def compile_na_inline_ir(label: str, code: str) -> tuple[any, ...] {
     path = os.path.join(FIXTURES, f"_closure_{label}.jac");
     prog = JacProgram();
     ir = prog.compile(file_path=path, use_str=code, options=native_force_opts());
     return (prog, ir, );
+}
+
+test "closure: callable fields preserve captured environments through parameters" {
+    (prog, module) = compile_na_inline_ir(
+        "callable_field",
+        """
+obj Callback { has call: Callable[([], int)]; }
+def store(call: Callable[([], int)]) -> Callback { return Callback(call); }
+def constant() -> int { return 7; }
+def compute(value: int) -> int {
+    def captured() -> int { return value; }
+    first = store(captured);
+    second = store(constant);
+    return first.call() + second.call();
+}
+"""
+    );
+    assert not prog.errors_had , "\n".join(str(e) for e in prog.errors_had);
+    assert module.gen.native_engine is not None;
+    call = get_func(
+        module.gen.native_engine, "compute", ctypes.c_int64, ctypes.c_int64
+    );
+    assert call(35) == 42;
+    assert call(93) == 100;
 }
 
 test "closure: nested def reads an enclosing param" {

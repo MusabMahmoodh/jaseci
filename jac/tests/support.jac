@@ -22,6 +22,19 @@ glob TESTS_DIR: str = str(Path(__file__).resolve().parent),
      # Repo root (the `jac/` dir): the parent of `tests/`.
      JAC_ROOT: str = str(Path(__file__).resolve().parent.parent);
 
+"""Environment overrides isolating every machine-wide cache family."""
+def cache_env(cache_dir: Path | str) -> dict[str, str] {
+    import from jaclang.cache.registry { BUCKETS }
+    base = Path(cache_dir).resolve();
+    env = {"JAC_CACHE_HOME": str(base), "XDG_CACHE_HOME": str(base)};
+    for b in BUCKETS {
+        if b.root_env {
+            env[b.root_env] = str(base / b.root_prefix);
+        }
+    }
+    return env;
+}
+
 """Select the parent's compiler, or an explicit checkout for comparative tests."""
 def compiler_python_command(
     source: str, *args: str, compiler_root: str | None = None
@@ -85,8 +98,8 @@ def native_str_func(eng: any, name: str, restype: type | None, *argtypes: type) 
     addr = eng.get_function_address(name);
     assert addr != 0 , f"Function '{name}' not found in JIT engine";
     real_res: any = JacStrABI if restype == ctypes.c_char_p else restype;
-    str_slots: list = [];
-    real_args: list = [];
+    str_slots: list[bool] = [];
+    real_args: list[any] = [];
     for a in argtypes {
         if a == ctypes.c_char_p {
             str_slots.append(True);
@@ -116,8 +129,8 @@ def native_str_func(eng: any, name: str, restype: type | None, *argtypes: type) 
             else None
     );
     def _call(*args: any) -> any {
-        c_args: list = [];
-        _keep: list = [];
+        c_args: list[any] = [];
+        _keep: list[any] = [];
         for (a, is_str) in zip(args, str_slots) {
             if is_str {
                 b = a.encode("utf-8") if isinstance(a, str) else a;
@@ -307,7 +320,7 @@ def native_run(
 ) -> str {
     import os;
     import subprocess;
-    run_env = dict(os.environ);
+    run_env: dict[str, str] = dict(os.environ);
     if env {
         run_env.update(env);
     }
