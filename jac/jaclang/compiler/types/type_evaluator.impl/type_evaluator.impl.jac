@@ -2425,14 +2425,19 @@ impl TypeEvaluator._get_type_of_symbol(symbol: Symbol) -> TypeBase {
         and isinstance(first.parent.value, Null) {
         stores: list[NameAtom] = [];
         for use in symbol.uses {
-            site = use.name_of.parent;
-            if isinstance(site, Assignment) and use.name_of in site.target {
+            target: UniNode = use.name_of;
+            site = target.parent;
+            while isinstance(site, (TupleVal, ListVal)) {
+                target = site;
+                site = site.parent;
+            }
+            if isinstance(site, Assignment) and target in site.target {
                 if site.type_tag is not None or site.aug_op is not None {
                     stores = [];
                     break;
                 }
                 stores.append(use);
-            } elif isinstance(site, InForStmt) and site.target is use.name_of {
+            } elif isinstance(site, InForStmt) and site.target is target {
                 stores.append(use);
             }
         }
@@ -2442,12 +2447,17 @@ impl TypeEvaluator._get_type_of_symbol(symbol: Symbol) -> TypeBase {
         }
         for store in stores {
             store_type = self._get_type_of_symbol_decl(symbol, store);
-            if isinstance(store_type, UnknownType) {
-                continue;
-            }
-            store_type = self._widen_literal_for_declaration(store_type);
-            if not self._type_in_list(store_type, widened) {
-                widened.append(store_type);
+            parts = store_type.types
+                if isinstance(store_type, UnionType)
+                else [store_type];
+            for part in parts {
+                if isinstance(part, UnknownType) {
+                    continue;
+                }
+                part = self._widen_literal_for_declaration(part);
+                if not self._type_in_list(part, widened) {
+                    widened.append(part);
+                }
             }
         }
         if len(widened) > 1 {
