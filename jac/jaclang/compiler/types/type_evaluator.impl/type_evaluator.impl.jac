@@ -2110,6 +2110,17 @@ impl TypeEvaluator._get_type_of_expression_core(
                         and isinstance(symbol.decl.name_of, TypeParam)
                     )
                     and expr.expr_ctx == ExprCtx.LOAD
+                    and expr.value
+                        not in (
+                            "self",
+                            "super",
+                            "root",
+                            "here",
+                            "visitor",
+                            "props",
+                            "init",
+                            "postinit"
+                        )
                     and not (
                         isinstance(expr.parent, AtomTrailer)
                         and expr.parent.is_attr
