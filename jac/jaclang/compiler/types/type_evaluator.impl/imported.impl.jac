@@ -341,7 +341,11 @@ impl TypeEvaluator.get_type_of_module(node_: ModulePath) -> TypeBase {
                     return npath.type;
                 }
                 npath.type = UnknownType(is_diagnosed=True);
-                declared = self._declared_missing_dependency(node_);
+                declared = self._declared_missing_dependency(node_)
+                    if self.program is not None
+                        and self.program.options is not None
+                        and self.program.options.strict_dependencies
+                    else None;
                 if self._relative_import_must_resolve(node_) {
                     self.emit_diag(E1134, npath, module=node_.dot_path_str);
                 } elif declared is not None {

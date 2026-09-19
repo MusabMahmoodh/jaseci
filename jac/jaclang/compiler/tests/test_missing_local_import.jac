@@ -233,9 +233,12 @@ glob _DEP_SRC: str = (
          "    value: int = Thing.parse(\"x\");\n"
          "    return value;\n"
          "}\n"
-     );
+     ),
+     _STRICT = CompileOptions(strict_dependencies=True);
 
 
+# `jac check` compiles with strict_dependencies; a build does not, since a
+# dependency can be supplied at pack or install time (a fat jab vendors it).
 def _dep_project(source: str, declared: bool) -> tuple[str, str] {
     (base, mod_path) = _project(source, name="main.jac");
     toml = "[project]\nname = \"missingdep\"\nversion = \"0.1.0\"\n";
@@ -253,7 +256,7 @@ test "a declared dependency that is not installed is an error naming the package
     (base, mod_path) = _dep_project(_DEP_SRC, declared=True);
     try {
         prog = JacProgram();
-        prog.compile(mod_path);
+        prog.compile(mod_path, options=_STRICT);
         named = [
             str(e)
             for e in prog.errors_had
@@ -273,7 +276,7 @@ test "an undeclared missing module stays a W1100 warning" {
     (base, mod_path) = _dep_project(_DEP_SRC, declared=False);
     try {
         prog = JacProgram();
-        prog.compile(mod_path);
+        prog.compile(mod_path, options=_STRICT);
         assert "E1136" not in _codes(prog) , _codes(prog);
         assert "W1100" in _warn_codes(prog) , _warn_codes(prog);
     } finally {
@@ -293,7 +296,7 @@ test "a declared dependency imported under try/except ImportError stays a warnin
     (base, mod_path) = _dep_project(src, declared=True);
     try {
         prog = JacProgram();
-        prog.compile(mod_path);
+        prog.compile(mod_path, options=_STRICT);
         assert "E1136" not in _codes(prog) , _codes(prog);
     } finally {
         shutil.rmtree(base, ignore_errors=True);
@@ -312,7 +315,7 @@ test "a dependency declared only on the app that owns the module is an error too
     }
     try {
         prog = JacProgram();
-        prog.compile(mod_path);
+        prog.compile(mod_path, options=_STRICT);
         assert "E1136" in _codes(prog) , f"expected E1136, got errors {_codes(prog)}"
         f" and warnings {_warn_codes(prog)}";
     } finally {
@@ -336,13 +339,31 @@ test "a shared module is not an error for an app that does not declare the packa
     }
     try {
         prog = JacProgram();
-        prog.compile(mod_path, options=CompileOptions(target_app="web"));
+        prog.compile(
+            mod_path, options=CompileOptions(target_app="web", strict_dependencies=True)
+        );
         assert "E1136" not in _codes(prog) , _codes(prog);
         worker = JacProgram();
-        worker.compile(mod_path, options=CompileOptions(target_app="worker"));
+        worker.compile(
+            mod_path,
+            options=CompileOptions(target_app="worker", strict_dependencies=True)
+        );
         assert "E1136" in _codes(worker) , f"expected E1136 for worker, got {_codes(
             worker
         )}";
+    } finally {
+        shutil.rmtree(base, ignore_errors=True);
+    }
+}
+
+
+test "a build compile keeps the warning for a declared missing dependency" {
+    (base, mod_path) = _dep_project(_DEP_SRC, declared=True);
+    try {
+        prog = JacProgram();
+        prog.compile(mod_path);
+        assert "E1136" not in _codes(prog) , _codes(prog);
+        assert "W1100" in _warn_codes(prog) , _warn_codes(prog);
     } finally {
         shutil.rmtree(base, ignore_errors=True);
     }
