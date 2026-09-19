@@ -788,10 +788,19 @@ test "bug_subscript_index_narrowing_negative" {
         for e in program.errors_had
         if e.code and e.code.code == "E1099"
     ];
-    assert len(e1099) >= 4 , (
-        "Range slice and post-narrow subscript reads must error. Expected at "
-        f"least 4 E1099 errors but got {[str(e) for e in program.errors_had]}"
+    lines = sorted(
+        [
+            e.loc.first_line
+            for e in e1099
+            if e.loc
+        ]
     );
+    for expected in [13, 22, 30, 38] {
+        assert expected in lines , (
+            f"Range slice and post-narrow subscript reads must error: no E1099 at "
+            f"line {expected}; got {[str(e) for e in program.errors_had]}"
+        );
+    }
     write_errors = [
         e
         for e in program.errors_had

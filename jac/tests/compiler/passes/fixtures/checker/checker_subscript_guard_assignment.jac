@@ -14,3 +14,12 @@ def typed_slot(counts: dict[str, int | None]) {
         counts["b"] = "x";  # <-- Error
     }
 }
+
+# When the container is a union, every member must accept the write: one
+# member taking a `str` does not make it valid for the member that takes `int`.
+def union_container(box: dict[str, int | None] | dict[str, str | None]) {
+    if box["k"] is None {
+        box["k"] = "value";  # <-- Error
+    }
+}
+

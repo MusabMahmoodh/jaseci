@@ -3235,13 +3235,24 @@ impl TypeEvaluator.slice_assignment_is_valid(target: Expr, value_node: Expr) -> 
         key = slices[0].start;
     }
     base_type = self.get_type_of_expression(target.target);
-    if isinstance(base_type, ClassType) and not base_type.is_class_instance() {
-        return False;
+    members = base_type.types
+        if isinstance(base_type, UnionType) and base_type.types
+        else [base_type];
+    for member in members {
+        if self.is_none_type(member) {
+            continue;
+        }
+        if isinstance(member, ClassType) and not member.is_class_instance() {
+            return False;
+        }
+        if self.get_type_of_magic_method_call(
+            member, "__setitem__", [key, value_node], None
+        )
+            is None {
+            return False;
+        }
     }
-    return self.get_type_of_magic_method_call(
-        base_type, "__setitem__", [key, value_node], None
-    )
-        is not None;
+    return True;
 }
 
 impl TypeEvaluator.is_any_type(ty: TypeBase) -> bool {
