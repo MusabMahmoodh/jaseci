@@ -401,11 +401,16 @@ glob CHECKER_DIRS: dict[(str, str)] = {
              "kwargs_literal_overload",
              "checker",
              "checker_kwargs_literal_overload.jac",
-             1,
+             2,
              True,
-             [(0, """
+             [
+                 (0, """
     Cannot assign bytes to str
-    """)]
+    """),
+                 (1, """
+    'timeoutt'
+    """)
+             ]
          ),
          (
              "unannotated_reassignment_frozen",

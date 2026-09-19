@@ -753,7 +753,7 @@ def _literal_kwargs_spread(arg: KWPair) -> (list[tuple[str, Expr]] | None) {
     if not isinstance(spread, DictVal) {
         return None;
     }
-    pairs: list[tuple[str, Expr]] = [];
+    last: dict[str, Expr] = {};
     for kv in spread.kv_pairs {
         key = kv.key;
         name: (str | bytes | None) = None;
@@ -766,9 +766,10 @@ def _literal_kwargs_spread(arg: KWPair) -> (list[tuple[str, Expr]] | None) {
         if not isinstance(name, str) {
             return None;
         }
-        pairs.append((name, kv.value));
+        last.pop(name, None);
+        last[name] = kv.value;
     }
-    return pairs;
+    return list(last.items());
 }
 
 impl TypeEvaluator.match_args_to_params(
@@ -821,9 +822,11 @@ impl TypeEvaluator.match_args_to_params(
                 for (name, value_expr) in spread {
                     spread_param = param_tracker.lookup_named_parameter(name);
                     if spread_param is None {
-                        raise Exception(
-                            f"Named argument '{name}' does not match any parameter"
-                        );
+                        if not checking_overload {
+                            self.emit_diag(E1052, value_expr, name=name);
+                        }
+                        argument_errors = True;
+                        continue;
                     }
                     arg_params[value_expr] = spread_param;
                 }
