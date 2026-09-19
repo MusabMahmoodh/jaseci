@@ -3240,7 +3240,7 @@ impl TypeEvaluator.slice_assignment_is_valid(target: Expr, value_node: Expr) -> 
         else [base_type];
     for member in members {
         if self.is_none_type(member) {
-            continue;
+            return False;
         }
         if isinstance(member, ClassType) and not member.is_class_instance() {
             return False;

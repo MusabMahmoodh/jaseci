@@ -23,3 +23,10 @@ def union_container(box: dict[str, int | None] | dict[str, str | None]) {
     }
 }
 
+# A container that may still be None is not written through.
+def maybe_container(box: dict[str, int | None] | None) {
+    if box["k"] is None {
+        box["k"] = 3;  # <-- Error
+    }
+}
+
