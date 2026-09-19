@@ -40,6 +40,20 @@ obj Toolbox {
     def calls_helper_bare {
         helper();
     }
+
+    static def make -> int {
+        return 1;
+    }
+
+    # In a static method the hint qualifies through the class, in a class
+    # method through `cls`.
+    static def static_bare {
+        make();
+    }
+
+    class def class_bare {
+        make();
+    }
 }
 
 impl Toolbox.from_impl -> int {

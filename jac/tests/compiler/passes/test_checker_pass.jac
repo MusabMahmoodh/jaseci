@@ -5469,4 +5469,14 @@ test "a bare name in a method body skips the class scope" {
     assert len(helper) == 1 , f"Expected one W2001 for 'helper', got: {names}";
     hint = str(helper[0].help_text or "");
     assert "self.helper" in hint and "Toolbox" in hint , f"Hint should name the class and `self.helper`: {hint!r}";
+    make_hints = sorted(
+        [
+            str(w.help_text or "")
+            for w in w2001
+            if "'make'" in w.msg
+        ]
+    );
+    assert len(make_hints) == 2 , f"Expected W2001 for 'make' in both methods, got: {names}";
+    assert any("`Toolbox.make`" in h for h in make_hints) , f"static method hint: {make_hints}";
+    assert any("`cls.make`" in h for h in make_hints) , f"class method hint: {make_hints}";
 }
