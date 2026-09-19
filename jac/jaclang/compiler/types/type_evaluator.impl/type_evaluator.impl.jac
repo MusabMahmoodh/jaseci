@@ -3223,16 +3223,23 @@ impl TypeEvaluator.slice_assignment_is_valid(target: Expr, value_node: Expr) -> 
         isinstance(target, AtomTrailer)
         and not target.is_attr
         and isinstance(target.right, IndexSlice)
-        and target.right.is_range
     ) {
         return False;
+    }
+    key: UniNode = target.right;
+    if not target.right.is_range {
+        slices = target.right.slices;
+        if len(slices) != 1 or slices[0].start is None {
+            return False;
+        }
+        key = slices[0].start;
     }
     base_type = self.get_type_of_expression(target.target);
     if isinstance(base_type, ClassType) and not base_type.is_class_instance() {
         return False;
     }
     return self.get_type_of_magic_method_call(
-        base_type, "__setitem__", [target.right, value_node], None
+        base_type, "__setitem__", [key, value_node], None
     )
         is not None;
 }
