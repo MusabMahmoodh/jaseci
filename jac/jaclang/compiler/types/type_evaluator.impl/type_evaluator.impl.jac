@@ -3739,7 +3739,8 @@ impl TypeEvaluator.assign_type(
                 }
                 if dest_type.shared.class_name in ("Iterable", "Iterator")
                     and dest_type.private.type_args
-                    and not has_type_var(dest_type.private.type_args[0]) {
+                    and not has_type_var(dest_type.private.type_args[0])
+                    and src_type.is_builtin(["list", "tuple", "set", "frozenset"]) {
                     elem = self._get_iterable_element_type(src_type);
                     if elem is not None and not isinstance(elem, UnknownType) {
                         return self.assign_type(
