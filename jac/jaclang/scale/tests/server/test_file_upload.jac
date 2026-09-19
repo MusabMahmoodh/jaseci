@@ -382,8 +382,8 @@ test "an optional single file binds when sent and is None when not" {
 }
 
 # A union with a non-file branch is not a file-only field: a string sent in the
-# JSON body or as a multipart form field binds to it.
-test "a file-or-string field binds a string from JSON and from a form field" {
+# JSON body or as a multipart form field binds to it, and a file still does.
+test "a file-or-string field binds a string from JSON, a form field, or a file" {
     client = make_client();
     try {
         token = client.register_and_login("note_or_text_user", "testpass123");
@@ -402,6 +402,14 @@ test "a file-or-string field binds a string from JSON and from a form field" {
         );
         assert response.status_code == 200;
         assert _first_report(response) == {"kind": "text", "value": "from form"};
+        (filename, file_obj) = _create_test_file("note.txt", b"note");
+        response = client.post(
+            "/walker/UploadNoteOrText",
+            headers=headers,
+            files={"note": (filename, file_obj, "text/plain")}
+        );
+        assert response.status_code == 200;
+        assert _first_report(response) == {"kind": "file", "value": "note.txt"};
     } finally {
         client.close();
     }

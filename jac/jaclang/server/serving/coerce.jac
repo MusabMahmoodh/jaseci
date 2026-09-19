@@ -114,6 +114,14 @@ def is_upload_type(target: any) -> bool {
     return False;
 }
 
+def _accepts_upload(target: any) -> bool {
+    origin = get_origin(target);
+    if origin is Union or origin is UnionType {
+        return any([_accepts_upload(arg) for arg in get_args(target)]);
+    }
+    return is_upload_type(target);
+}
+
 def _without_none(target: any) -> any {
     origin = get_origin(target);
     if origin is Union or origin is UnionType {
@@ -299,6 +307,10 @@ def _extract_raw(
         }
         if isinstance(body_json, dict) and param.name in body_json {
             return (True, body_json[param.name]);
+        }
+        files = request.upload_files.get(param.name, []);
+        if files and _accepts_upload(_param_target(param)) {
+            return (True, files[0]);
         }
         return (False, None);
     }
