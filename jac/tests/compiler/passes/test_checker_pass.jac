@@ -5444,3 +5444,29 @@ test "client cleanup returns only warn when ignored" {
     assert len(ignored) == 2 , str(ignored);
     assert [w.loc.first_line for w in ignored] == [7, 10];
 }
+
+test "a bare name in a method body skips the class scope" {
+    prog = JacProgram();
+    prog.compile(
+        os.path.join(CHECKER_FIXTURES, "checker_bare_name_skips_class_scope.jac")
+    );
+    errors = [str(e) for e in prog.errors_had];
+    assert not errors , f"Expected no errors, got: {errors}";
+    w2001 = [
+        w
+        for w in prog.warnings_had
+        if w.code is not None and w.code.code == "W2001"
+    ];
+    names = [w.msg for w in w2001];
+    for bound in ["'lookup'", "'Part'", "'T'", "'seed'"] {
+        assert not any(bound in m for m in names) , f"{bound} should resolve: {names}";
+    }
+    helper = [
+        w
+        for w in w2001
+        if "'helper'" in w.msg
+    ];
+    assert len(helper) == 1 , f"Expected one W2001 for 'helper', got: {names}";
+    hint = str(helper[0].help_text or "");
+    assert "self.helper" in hint and "Toolbox" in hint , f"Hint should name the class and `self.helper`: {hint!r}";
+}

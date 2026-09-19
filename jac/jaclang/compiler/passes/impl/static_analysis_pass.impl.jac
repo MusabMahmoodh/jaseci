@@ -154,9 +154,29 @@ impl StaticAnalysisPass._check_undefined_names(mod: Module) -> None {
         suggestion = self._literal_case_suggestion(name_nd.value);
         if suggestion is not None {
             hint = f"Jac uses Python-style literals -- did you mean `{suggestion}`?";
+        } else {
+            owner = self._enclosing_class_member(name_nd);
+            if owner is not None {
+                hint = f"`{name_nd.value}` is a member of `{owner}`, and a method body does not see its class's names; refer to it as `self.{name_nd.value}`.";
+            }
         }
         self.ctx.emit(W2001, node_override=name_nd, name=name_nd.value, help_text=hint);
     }
+}
+
+impl StaticAnalysisPass._enclosing_class_member(name_nd: Name) -> (str | None) {
+    cur = name_nd.parent;
+    while cur is not None {
+        owner: (UniNode | None) = cur;
+        if isinstance(cur, ImplDef) and cur.decl_link is not None {
+            owner = cur.decl_link.find_parent_of_type(Archetype);
+        }
+        if isinstance(owner, Archetype) and name_nd.value in owner.names_in_scope {
+            return owner.sym_name;
+        }
+        cur = cur.parent;
+    }
+    return None;
 }
 
 impl StaticAnalysisPass._literal_case_suggestion(name: str) -> (str | None) {
