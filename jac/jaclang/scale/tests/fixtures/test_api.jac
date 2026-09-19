@@ -250,6 +250,20 @@ walker UploadNoteOrText {
     }
 }
 
+"""Walker whose field takes several files or a plain string."""
+walker UploadDocsOrText {
+    has docs: list[UploadFile] | str;
+
+    can process with Root entry {
+        report {
+            "files": [f.filename for f in self.docs]
+                if isinstance(self.docs, list)
+                else None,
+            "text": self.docs if isinstance(self.docs, str) else None
+        };
+    }
+}
+
 # ============================================================================
 # Webhook Walkers
 # ============================================================================

@@ -122,6 +122,22 @@ def _accepts_upload(target: any) -> bool {
     return is_upload_type(target);
 }
 
+def _accepts_upload_list(target: any) -> bool {
+    origin = get_origin(target);
+    if origin is Union or origin is UnionType {
+        return any([_accepts_upload_list(arg) for arg in get_args(target)]);
+    }
+    return origin is list and is_upload_type(target);
+}
+
+def _accepts_single_upload(target: any) -> bool {
+    origin = get_origin(target);
+    if origin is Union or origin is UnionType {
+        return any([_accepts_single_upload(arg) for arg in get_args(target)]);
+    }
+    return origin is not list and is_upload_type(target);
+}
+
 def _without_none(target: any) -> any {
     origin = get_origin(target);
     if origin is Union or origin is UnionType {
@@ -309,7 +325,12 @@ def _extract_raw(
             return (True, body_json[param.name]);
         }
         files = request.upload_files.get(param.name, []);
-        if files and _accepts_upload(_param_target(param)) {
+        target = _param_target(param);
+        if files and _accepts_upload(target) {
+            if _accepts_upload_list(target)
+                and (len(files) > 1 or not _accepts_single_upload(target)) {
+                return (True, files);
+            }
             return (True, files[0]);
         }
         return (False, None);

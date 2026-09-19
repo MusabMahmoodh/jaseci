@@ -414,3 +414,23 @@ test "a file-or-string field binds a string from JSON, a form field, or a file" 
         client.close();
     }
 }
+
+test "a files-or-string field binds every posted file as a list" {
+    client = make_client();
+    try {
+        token = client.register_and_login("docs_or_text_user", "testpass123");
+        headers = {"Authorization": f"Bearer {token}"};
+        response = client.post(
+            "/walker/UploadDocsOrText",
+            headers=headers,
+            files=[
+                ("docs", ("a.txt", io.BytesIO(b"a"), "text/plain")),
+                ("docs", ("b.txt", io.BytesIO(b"b"), "text/plain"))
+            ]
+        );
+        assert response.status_code == 200;
+        assert _first_report(response) == {"files": ["a.txt", "b.txt"], "text": None};
+    } finally {
+        client.close();
+    }
+}
