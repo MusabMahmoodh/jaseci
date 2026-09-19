@@ -606,13 +606,15 @@ impl TypeEvaluator._declared_missing_dependency(node_: ModulePath) -> (str | Non
     wanted = norm(str(node_.path[0].value));
     names: list[str] = [*cfg.dependencies, *cfg.dev_dependencies];
     owner = cfg.app_for_path(str(Path(mod.loc.mod_path).resolve()));
-    for app_name in ([owner.name] if owner is not None else list(cfg.apps)) {
+    app_name = owner.name if owner is not None else "";
+    if not app_name and self.program is not None and self.program.options is not None {
+        app_name = self.program.options.target_app or "";
+    }
+    if app_name and app_name in cfg.apps {
         try {
             app_cfg = cfg.effective_for_app(app_name);
-        } except Exception {
-            continue;
-        }
-        names.extend([*app_cfg.dependencies, *app_cfg.dev_dependencies]);
+            names.extend([*app_cfg.dependencies, *app_cfg.dev_dependencies]);
+        } except Exception {}
     }
     for declared in names {
         if norm(str(declared)) == wanted {

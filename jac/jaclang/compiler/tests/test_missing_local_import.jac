@@ -20,6 +20,7 @@ import os;
 import shutil;
 import tempfile;
 import from jaclang.compiler.driver.program { JacProgram }
+import from jaclang.compiler.driver.compile_options { CompileOptions }
 
 
 glob _FIELD_SRC: str = (
@@ -314,6 +315,34 @@ test "a dependency declared only on the app that owns the module is an error too
         prog.compile(mod_path);
         assert "E1136" in _codes(prog) , f"expected E1136, got errors {_codes(prog)}"
         f" and warnings {_warn_codes(prog)}";
+    } finally {
+        shutil.rmtree(base, ignore_errors=True);
+    }
+}
+
+
+test "a shared module is not an error for an app that does not declare the package" {
+    (base, mod_path) = _project(_DEP_SRC, name="shared.jac");
+    with open(os.path.join(base, "web.jac"), "w") as f {
+        f.write("import shared;\n");
+    }
+    with open(os.path.join(base, "jac.toml"), "w") as f {
+        f.write(
+            "[project]\nname = \"missingdep\"\nversion = \"0.1.0\"\n\n"
+            "[apps.web]\nkind = \"service\"\nentry-point = \"web\"\n\n"
+            "[apps.worker]\nkind = \"service\"\nentry-point = \"worker\"\n\n"
+            "[apps.worker.dependencies]\nnot-installed-pkg-xyz = \">=1.0\"\n"
+        );
+    }
+    try {
+        prog = JacProgram();
+        prog.compile(mod_path, options=CompileOptions(target_app="web"));
+        assert "E1136" not in _codes(prog) , _codes(prog);
+        worker = JacProgram();
+        worker.compile(mod_path, options=CompileOptions(target_app="worker"));
+        assert "E1136" in _codes(worker) , f"expected E1136 for worker, got {_codes(
+            worker
+        )}";
     } finally {
         shutil.rmtree(base, ignore_errors=True);
     }
