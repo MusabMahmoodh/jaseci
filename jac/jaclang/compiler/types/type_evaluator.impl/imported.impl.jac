@@ -604,7 +604,17 @@ impl TypeEvaluator._declared_missing_dependency(node_: ModulePath) -> (str | Non
         return name.strip().lower().replace("-", "_").replace(".", "_");
     }
     wanted = norm(str(node_.path[0].value));
-    for declared in [*cfg.dependencies, *cfg.dev_dependencies] {
+    names: list[str] = [*cfg.dependencies, *cfg.dev_dependencies];
+    owner = cfg.app_for_path(str(Path(mod.loc.mod_path).resolve()));
+    for app_name in ([owner.name] if owner is not None else list(cfg.apps)) {
+        try {
+            app_cfg = cfg.effective_for_app(app_name);
+        } except Exception {
+            continue;
+        }
+        names.extend([*app_cfg.dependencies, *app_cfg.dev_dependencies]);
+    }
+    for declared in names {
         if norm(str(declared)) == wanted {
             return str(declared);
         }

@@ -298,3 +298,23 @@ test "a declared dependency imported under try/except ImportError stays a warnin
         shutil.rmtree(base, ignore_errors=True);
     }
 }
+
+
+test "a dependency declared only on the app that owns the module is an error too" {
+    (base, mod_path) = _project(_DEP_SRC, name="main.jac");
+    with open(os.path.join(base, "jac.toml"), "w") as f {
+        f.write(
+            "[project]\nname = \"missingdep\"\nversion = \"0.1.0\"\n\n"
+            "[apps.web]\nkind = \"service\"\nentry-point = \"main\"\n\n"
+            "[apps.web.dependencies]\nnot-installed-pkg-xyz = \">=1.0\"\n"
+        );
+    }
+    try {
+        prog = JacProgram();
+        prog.compile(mod_path);
+        assert "E1136" in _codes(prog) , f"expected E1136, got errors {_codes(prog)}"
+        f" and warnings {_warn_codes(prog)}";
+    } finally {
+        shutil.rmtree(base, ignore_errors=True);
+    }
+}
