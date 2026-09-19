@@ -219,3 +219,82 @@ test "a missing sibling outside the guarded try is still an error" {
         shutil.rmtree(base, ignore_errors=True);
     }
 }
+
+
+# A bare import that jac.toml declares as a dependency is expected to resolve.
+# When the package is not installed, W1100 left every name from it Unknown and
+# `jac check` green, so nothing flowing from it was type-checked. Declared and
+# missing is an error; undeclared stays a warning.
+glob _DEP_SRC: str = (
+         "import from not_installed_pkg_xyz { Thing }\n"
+         "\n"
+         "def use -> int {\n"
+         "    value: int = Thing.parse(\"x\");\n"
+         "    return value;\n"
+         "}\n"
+     );
+
+
+def _dep_project(source: str, declared: bool) -> tuple[str, str] {
+    (base, mod_path) = _project(source, name="main.jac");
+    toml = "[project]\nname = \"missingdep\"\nversion = \"0.1.0\"\n";
+    if declared {
+        toml += "\n[dependencies]\nnot-installed-pkg-xyz = \">=1.0\"\n";
+    }
+    with open(os.path.join(base, "jac.toml"), "w") as f {
+        f.write(toml);
+    }
+    return (base, mod_path);
+}
+
+
+test "a declared dependency that is not installed is an error naming the package" {
+    (base, mod_path) = _dep_project(_DEP_SRC, declared=True);
+    try {
+        prog = JacProgram();
+        prog.compile(mod_path);
+        named = [
+            str(e)
+            for e in prog.errors_had
+            if e.code and e.code.code == "E1136"
+        ];
+        assert len(named) == 1 , f"expected one E1136, got errors {_codes(prog)}"
+        f" and warnings {_warn_codes(prog)}";
+        assert "not-installed-pkg-xyz" in named[0] , named;
+        assert "W1100" not in _warn_codes(prog) , _warn_codes(prog);
+    } finally {
+        shutil.rmtree(base, ignore_errors=True);
+    }
+}
+
+
+test "an undeclared missing module stays a W1100 warning" {
+    (base, mod_path) = _dep_project(_DEP_SRC, declared=False);
+    try {
+        prog = JacProgram();
+        prog.compile(mod_path);
+        assert "E1136" not in _codes(prog) , _codes(prog);
+        assert "W1100" in _warn_codes(prog) , _warn_codes(prog);
+    } finally {
+        shutil.rmtree(base, ignore_errors=True);
+    }
+}
+
+
+test "a declared dependency imported under try/except ImportError stays a warning" {
+    src = (
+        "try {\n"
+        "    import from not_installed_pkg_xyz { Thing }\n"
+        "} except ImportError {\n"
+        "    Thing = None;\n"
+        "}\n"
+    );
+    (base, mod_path) = _dep_project(src, declared=True);
+    try {
+        prog = JacProgram();
+        prog.compile(mod_path);
+        assert "E1136" not in _codes(prog) , _codes(prog);
+    } finally {
+        shutil.rmtree(base, ignore_errors=True);
+    }
+}
