@@ -24,6 +24,20 @@ def uses_first(prices: list[float]) -> float {
     return got;
 }
 
+def pick[T](xs: Iterable[T]) -> list[T] {
+    return list(xs);
+}
+
+def firsts[T](groups: Iterable[list[T]]) -> list[T] {
+    return [g[0] for g in groups];
+}
+
+def generic_target(prices: list[float], nested: dict[list[int], str]) -> list[float] {
+    heads: list[int] = firsts(nested);  # <-- Ok
+    print(heads);
+    return pick(prices);  # <-- Ok
+}
+
 def element_types(prices: list[float], names: list[str]) {
     ok: Iterable[float] = prices;  # <-- Ok
     also_ok: Iterable[str] = names;  # <-- Ok
