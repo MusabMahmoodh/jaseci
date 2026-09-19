@@ -2417,6 +2417,43 @@ impl TypeEvaluator._get_type_of_symbol(symbol: Symbol) -> TypeBase {
             }
         }
     }
+    first = symbol.decl.name_of if symbol.decl else None;
+    if len(symbol.defn) == 1
+        and isinstance(first, Name)
+        and isinstance(first.parent, Assignment)
+        and first.parent.type_tag is None
+        and isinstance(first.parent.value, Null) {
+        stores: list[NameAtom] = [];
+        for use in symbol.uses {
+            site = use.name_of.parent;
+            if isinstance(site, Assignment) and use.name_of in site.target {
+                if site.type_tag is not None or site.aug_op is not None {
+                    stores = [];
+                    break;
+                }
+                stores.append(use);
+            } elif isinstance(site, InForStmt) and site.target is use.name_of {
+                stores.append(use);
+            }
+        }
+        widened: list[TypeBase] = [];
+        if stores {
+            widened.append(self._get_type_of_symbol_decl(symbol, symbol.decl));
+        }
+        for store in stores {
+            store_type = self._get_type_of_symbol_decl(symbol, store);
+            if isinstance(store_type, UnknownType) {
+                continue;
+            }
+            store_type = self._widen_literal_for_declaration(store_type);
+            if not self._type_in_list(store_type, widened) {
+                widened.append(store_type);
+            }
+        }
+        if len(widened) > 1 {
+            return UnionType(types=widened);
+        }
+    }
     return self._get_type_of_symbol_decl(symbol, symbol.decl);
 }
 
