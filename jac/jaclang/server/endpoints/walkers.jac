@@ -104,9 +104,11 @@ def _param_kind(
     if field_name in path_names {
         return ParameterType.PATH;
     }
-    if is_upload_type(type_obj)
-        or 'UploadFile' in field_type
-        or 'uploadfile' in field_type.lower() {
+    if type_obj is not None and not isinstance(type_obj, str) {
+        if is_upload_type(type_obj) {
+            return ParameterType.FILE;
+        }
+    } elif 'UploadFile' in field_type or 'uploadfile' in field_type.lower() {
         return ParameterType.FILE;
     }
     if method == HTTPMethod.GET {

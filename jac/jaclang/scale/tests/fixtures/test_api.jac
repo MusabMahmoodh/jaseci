@@ -236,6 +236,20 @@ walker UploadOptionalFile {
     }
 }
 
+"""Walker whose field takes a file or a plain string."""
+walker UploadNoteOrText {
+    has note: UploadFile | str;
+
+    can process with Root entry {
+        report {
+            "kind": "file" if isinstance(self.note, UploadFile) else "text",
+            "value": self.note.filename
+                if isinstance(self.note, UploadFile)
+                else self.note
+        };
+    }
+}
+
 # ============================================================================
 # Webhook Walkers
 # ============================================================================

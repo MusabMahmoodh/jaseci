@@ -95,12 +95,21 @@ def is_upload_type(target: any) -> bool {
     if target is None {
         return False;
     }
+    origin = get_origin(target);
+    if origin is list {
+        args = get_args(target);
+        return len(args) == 1 and is_upload_type(args[0]);
+    }
+    if origin is Union or origin is UnionType {
+        branches = [
+            arg
+            for arg in get_args(target)
+            if arg is not type(None)
+        ];
+        return len(branches) > 0 and all([is_upload_type(arg) for arg in branches]);
+    }
     if isinstance(target, type) {
         return issubclass(target, UploadFile) or target.__name__ == 'UploadFile';
-    }
-    origin = get_origin(target);
-    if origin is list or origin is Union or origin is UnionType {
-        return any([is_upload_type(arg) for arg in get_args(target)]);
     }
     return False;
 }
