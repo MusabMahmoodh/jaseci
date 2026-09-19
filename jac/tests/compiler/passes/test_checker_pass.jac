@@ -398,6 +398,16 @@ glob CHECKER_DIRS: dict[(str, str)] = {
              ]
          ),
          (
+             "kwargs_literal_overload",
+             "checker",
+             "checker_kwargs_literal_overload.jac",
+             1,
+             True,
+             [(0, """
+    Cannot assign bytes to str
+    """)]
+         ),
+         (
              "unannotated_reassignment_frozen",
              "checker",
              "checker_none_sentinel_reassignment.jac",
