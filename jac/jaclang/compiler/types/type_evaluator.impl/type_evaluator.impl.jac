@@ -3725,6 +3725,17 @@ impl TypeEvaluator.assign_type(
         required_method = _protocol_methods.get(dest_type.shared.class_name);
         if required_method {
             if self._lookup_object_member(src_type, required_method) {
+                if dest_type.shared.class_name in ("Iterable", "Iterator")
+                    and dest_type.private.type_args {
+                    elem = self._get_iterable_element_type(src_type);
+                    if elem is not None and not isinstance(elem, UnknownType) {
+                        return self.assign_type(
+                            self._convert_to_instance(elem),
+                            self._convert_to_instance(dest_type.private.type_args[0]),
+                            strict
+                        );
+                    }
+                }
                 return True;
             }
         }
