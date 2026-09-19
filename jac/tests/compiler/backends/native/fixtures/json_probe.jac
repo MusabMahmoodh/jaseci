@@ -35,4 +35,15 @@ with entry {
     print(ys[1]);
     d: dict[str, int] = ident({"q": 9});
     print(d["q"]);
+    # the same through an optional target, and None through one
+    zs: list[int] | None = ident([7, 8]);
+    if zs is not None {
+        print(zs[1]);
+    }
+    od: dict[str, int] | None = ident({"r": 6});
+    if od is not None {
+        print(od["r"]);
+    }
+    nl: list[int] | None = ident(None);
+    print("none" if nl is None else "some");
 }

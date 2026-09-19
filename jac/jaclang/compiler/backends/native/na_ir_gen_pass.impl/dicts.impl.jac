@@ -333,6 +333,39 @@ impl NaIRGenPass._reflavor_dict(
     return self._mark_owned(out);
 }
 
+impl NaIRGenPass._guarded_reflavor(
+    ptr: ir.Value, kind: str, src: str, dst: str
+) -> ir.Value {
+    if isinstance(ptr, ir.Constant) {
+        return ptr;
+    }
+    _entry_bb = self.builder.block;
+    _fn = self.builder.function;
+    _conv_bb = _fn.append_basic_block("jvc.conv");
+    _join_bb = _fn.append_basic_block("jvc.join");
+    self.builder.cbranch(
+        self.builder.icmp_unsigned(
+            "==", ptr, ir.Constant(ptr.type, None), name="jvc.isnull"
+        ),
+        _join_bb,
+        _conv_bb
+    );
+    self._builder = ir.IRBuilder(_conv_bb);
+    _res = self._reflavor_list(ptr, src, dst)
+        if kind == "list"
+        else self._reflavor_dict(ptr, src, dst);
+    if _res is None {
+        _res = ptr;
+    }
+    _conv_end = self.builder.block;
+    self.builder.branch(_join_bb);
+    self._builder = ir.IRBuilder(_join_bb);
+    _out = self.builder.phi(_res.type, name="jvc.out");
+    _out.add_incoming(ir.Constant(_res.type, None), _entry_bb);
+    _out.add_incoming(_res, _conv_end);
+    return self._mark_owned(_out) if _res is not ptr else _out;
+}
+
 impl NaIRGenPass._jacval_container(val: ir.Value) -> ir.Value {
     if self._builder is None or not isinstance(val.type, ir.PointerType) {
         return val;
@@ -340,13 +373,13 @@ impl NaIRGenPass._jacval_container(val: ir.Value) -> ir.Value {
     _ls = self._spec_from_list_slot_type(val.type);
     if _ls is not None and _ls != "jacval" {
         self._emit_list_helpers("jacval", self.jacval_type);
-        _lr = self._reflavor_list(val, _ls, "jacval");
-        return _lr if _lr is not None else val;
+        return self._guarded_reflavor(val, "list", _ls, "jacval");
     }
     _dk = self._dict_key_of_ptr(val.type);
     if _dk is not None and not _dk.endswith(":jacval") {
-        _dr = self._reflavor_dict(val, _dk, _dk.split(":", 1)[0] + ":jacval");
-        return _dr if _dr is not None else val;
+        return self._guarded_reflavor(
+            val, "dict", _dk, _dk.split(":", 1)[0] + ":jacval"
+        );
     }
     return val;
 }
@@ -360,16 +393,12 @@ impl NaIRGenPass._unbox_jacval_container(
         and isinstance(target_type, ir.PointerType) {
         self._emit_list_helpers("jacval", self.jacval_type);
         _jl = self._unbox_from_jacval(jv, self.list_types["jacval"].as_pointer());
-        _lr = self._reflavor_list(_jl, "jacval", _ls);
-        if _lr is not None {
-            return _lr;
-        }
+        return self._guarded_reflavor(_jl, "list", "jacval", _ls);
     }
     _dk = self._dict_key_of_ptr(target_type);
     if _dk is not None and not _dk.endswith(":jacval") {
         _src_key = _dk.split(":", 1)[0] + ":jacval";
-        _sh = self.dict_helpers.get(_src_key);
-        if _sh is None {
+        if self.dict_helpers.get(_src_key) is None {
             (_kn, _ksz) = self._hash_key_spec(self.dict_helpers[_dk]["key_type"]);
             self._emit_dict_helpers(
                 _dk.split(":", 1)[0],
@@ -380,10 +409,7 @@ impl NaIRGenPass._unbox_jacval_container(
             );
         }
         _jd = self._unbox_from_jacval(jv, self.dict_types[_src_key].as_pointer());
-        _dr = self._reflavor_dict(_jd, _src_key, _dk);
-        if _dr is not None {
-            return _dr;
-        }
+        return self._guarded_reflavor(_jd, "dict", _src_key, _dk);
     }
     return self._unbox_from_jacval(jv, target_type);
 }

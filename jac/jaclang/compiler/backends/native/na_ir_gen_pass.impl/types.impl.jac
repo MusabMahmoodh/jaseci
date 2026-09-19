@@ -2228,7 +2228,7 @@ impl NaIRGenPass._coerce_type_inner(val: ir.Value, target_type: ir.Type) -> ir.V
             _jv_is_none = self.builder.icmp_unsigned(
                 "==", _jv_tag, ir.Constant(ir.IntType(8), 8), name="opt.jv.isnone"
             );
-            _jv_pl = self._unbox_from_jacval(val, _opt_tgt);
+            _jv_pl = self._unbox_jacval_container(val, _opt_tgt);
             _jv_ov = self.builder.insert_value(
                 ir.Constant(target_type, None),
                 ir.Constant(ir.IntType(8), 1),

@@ -1096,6 +1096,7 @@ walker NaIRGenPass {
     def _jacval_container(val: ir.Value) -> ir.Value;
     def _unbox_jacval_container(jv: ir.Value, target_type: ir.Type) -> ir.Value;
     def _reflavor_dict(val: ir.Value, src_key: str, dst_key: str) -> (ir.Value | None);
+    def _guarded_reflavor(ptr: ir.Value, kind: str, src: str, dst: str) -> ir.Value;
     def _codegen_dict_val(nd: uni.DictVal) -> (ir.Value | None);
     def _codegen_dict_unpack(nd: uni.DictVal) -> (ir.Value | None);
     def _codegen_dict_access(
