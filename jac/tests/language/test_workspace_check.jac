@@ -330,6 +330,26 @@ test "jac check <file> says its imports were read as interfaces only" {
     _cleanup();
 }
 
+test "jac check <file> outside any workspace says the same" {
+    parent = tempfile.mkdtemp(prefix="jacloose_");
+    _tmp_dirs.append(parent);
+    with open(os.path.join(parent, "helper.jac"), "w") as f {
+        f.write(
+            "def:pub takes_int(x: int) -> int {\n    return x + 1;\n}\n\n"
+            "def:pub broken -> int {\n    return takes_int(\"not an int\");\n}\n"
+        );
+    }
+    with open(os.path.join(parent, "main.jac"), "w") as f {
+        f.write(
+            "import from helper { broken }\n\nwith entry {\n    print(broken());\n}\n"
+        );
+    }
+    (rc, out) = _check_in(parent, paths=["main.jac"]);
+    assert rc == 0 , f"main.jac itself is clean:\n{out}";
+    assert "1 imported module read as interfaces only" in out , out;
+    _cleanup();
+}
+
 test "app test directories override the entry default" {
     d = _workspace();
     with open(os.path.join(d, 'jac.toml'), 'a') as config {

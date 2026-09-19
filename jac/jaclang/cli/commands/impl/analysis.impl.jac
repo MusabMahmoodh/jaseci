@@ -162,8 +162,12 @@ def _check_file_job(request: dict[(str, any)]) -> dict[(str, any)] {
                 compile_application(prog, file_path, compile_options);
             } else {
                 prog.compile(file_path, options=compile_options);
-                if opts.get("named") and opts.get("project_root") {
-                    project_dir = os.path.realpath(str(opts["project_root"]));
+                if opts.get("named") {
+                    project_dir = os.path.realpath(
+                        str(opts["project_root"])
+                            if opts.get("project_root")
+                            else os.path.dirname(file_path)
+                    );
                     checked = os.path.realpath(file_path);
                     result['reached'] = sorted(
                         {
