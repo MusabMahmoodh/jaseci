@@ -416,6 +416,11 @@ test "a deployed gateway serves its shell to every client, and only for page pat
         assert api.status_code == 404 , (
             "a client that asks for JSON only keeps the JSON 404 envelope"
         );
+        mixed = client.get("/leaderboard", headers={"Accept": "Application/JSON"});
+        assert mixed.status_code == 404 , (
+            "media types are case-insensitive: a mixed-case JSON Accept keeps "
+            f"the JSON 404 envelope too; got {mixed.status_code}"
+        );
         stale = client.get(
             "/client.stale.js", headers={"Accept": "text/html,*/*;q=0.8"}
         );
