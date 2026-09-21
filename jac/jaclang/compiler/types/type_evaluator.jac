@@ -119,6 +119,7 @@ import from jaclang.compiler.frontend.constant {
     TOKEN_MAP,
     BindingKind,
     CodeContext,
+    ImmutabilityKind,
     SymbolType,
     Tokens as Tok,
     SymbolAccess,
@@ -223,6 +224,7 @@ import from jaclang.compiler.frontend.diagnostics {
     E1052,
     E1053,
     E1054,
+    E1055,
     E1056,
     E1057,
     E1062,
@@ -251,6 +253,8 @@ import from jaclang.compiler.frontend.diagnostics {
     E1129,
     E1131,
     E1134,
+    E1136,
+    E1137,
     E0049,
     E5094,
     W1050,
@@ -258,7 +262,9 @@ import from jaclang.compiler.frontend.diagnostics {
     W1053,
     W1100,
     W1101,
-    W1102
+    W1102,
+    W2081,
+    W2082
 }
 
 obj PrefetchedTypes {
@@ -365,6 +371,12 @@ enum NarrowingKind {
     TYPE_GUARD = "type_guard"
 }
 
+enum EndpointVerdict {
+    CONFORMS = "conforms",
+    VIOLATES = "violates",
+    UNPROVEN = "unproven"
+}
+
 obj ConditionInfo {
     has kind: NarrowingKind,
         key: str,
@@ -442,6 +454,7 @@ walker TypeEvaluator {
     def push_symbol_resolution(symbol: Symbol) -> bool;
     def pop_symbol_resolution(symbol: Symbol) -> None;
     def get_type_of_symbol(symbol: Symbol) -> TypeBase;
+    def _published_class_type(symbol: Symbol) -> (TypeBase | None);
     def resolve_to_definition_symbol(symbol: Symbol) -> Symbol;
     def _widen_literal_for_declaration(ty: TypeBase) -> TypeBase;
     def _import_module_from_path(
@@ -502,7 +515,11 @@ walker TypeEvaluator {
     ) -> (TypeBase | None);
 
     def _install_synth_member(
-        scope: UniScopeNode, synth_src: Source, mname: str, member_type: TypeBase
+        scope: UniScopeNode,
+        synth_src: Source,
+        mname: str,
+        member_type: TypeBase,
+        immutability: ImmutabilityKind = ImmutabilityKind.NONE
     ) -> None;
 
     def _ts_synth_class_types(
@@ -526,6 +543,14 @@ walker TypeEvaluator {
     ) -> Symbol | None;
 
     def _metaclass_of(cls_type: ClassType) -> (ClassType | None);
+    def _declared_metaclass_member(
+        cls_type: ClassType, name: str
+    ) -> (ClassMember | None);
+
+    def _report_rejected_method_call(
+        receiver: ClassType, member: ClassMember, args: list[Expr], site: UniNode
+    ) -> None;
+
     def _extract_type_params(node_: Archetype) -> list[TypeVarType];
     def _type_var_from_param(node_: TypeParam) -> TypeVarType;
     def _extract_ct_params(node_: Archetype) -> (list[str] | None);
@@ -569,6 +594,8 @@ walker TypeEvaluator {
     ) -> bool;
 
     def _extern_scalar_type(type_expr: Expr | None) -> TypeBase;
+    def _intrinsic_function_type(name: str) -> (FunctionType | None);
+    def _intrinsic_spec_type(spec: str) -> TypeBase;
     def _check_extern_ctor_args(expr: FuncCall, arch: Archetype) -> None;
     def _extern_member_type(arch: Archetype, name: str) -> TypeBase;
     def _extern_field_type(field: HasVar) -> TypeBase;
@@ -616,6 +643,11 @@ walker TypeEvaluator {
 
     def _get_type_of_symbol(symbol: Symbol) -> TypeBase;
     def _get_type_of_symbol_decl(symbol: Symbol, decl: NameAtom) -> TypeBase;
+    def _as_final_form(ty: TypeBase) -> (ClassType | None);
+    def _final_declared_type(
+        annotation_type: TypeBase, symbol: (Symbol | None), value: (Expr | None)
+    ) -> (TypeBase | None);
+
     def _get_enum_member_type_for_decl(node_: Name) -> (EnumMemberType | None);
     def get_type_of_member(member: ClassMember, class_type: ClassType) -> TypeBase;
     def declaring_class_of(symbol: Symbol, base_type: ClassType) -> (ClassType | None);
@@ -677,9 +709,44 @@ walker TypeEvaluator {
 
     def _native_iter_next_result(expr: FuncCall) -> TypeBase | None;
     def _convert_to_instance(jtype: TypeBase) -> TypeBase;
+    def _edge_endpoint_declared(
+        edge_type: ClassType, want_src: bool
+    ) -> TypeBase | None;
+
     def _edge_endpoint_type(
         edge_type: ClassType, edge_dir: EdgeDir
     ) -> TypeBase | None;
+
+    def _edge_endpoint_verdict(
+        actual: TypeBase, declared: TypeBase
+    ) -> EndpointVerdict;
+
+    def _connected_node_type(operand: TypeBase) -> TypeBase;
+    def _report_endpoint_verdict(
+        at: UniNode,
+        violation: DiagnosticInfo,
+        unproven: DiagnosticInfo,
+        edge_type: ClassType,
+        side: str,
+        actual: TypeBase,
+        declared: TypeBase
+    ) -> None;
+
+    def _check_connect_endpoints(
+        conn_type: TypeBase,
+        edge_dir: EdgeDir,
+        left: Expr,
+        left_type: TypeBase,
+        right: Expr,
+        right_type: TypeBase
+    ) -> None;
+
+    def _check_traversal_origin(
+        edge_type: ClassType,
+        edge_dir: EdgeDir,
+        origin_type: TypeBase | None,
+        at: UniNode
+    ) -> None;
 
     def _type_in_list(ty: TypeBase, type_list: list[TypeBase]) -> bool;
     def _collect_unique_types(ty: TypeBase, result: list[TypeBase]) -> None;
@@ -708,6 +775,7 @@ walker TypeEvaluator {
     def _bind_filter_member(target: Name, filter_type: ClassType) -> None;
     def _filter_order_name(expr: Expr) -> (Name | None);
     def _is_type_subscript(class_type: ClassType) -> bool;
+    def _subscript_index_expr(right: Expr) -> Expr;
     def _get_type_for_member_lookup(object_type: ClassType) -> ClassType;
     def _get_getattr_return_type(base_type: ClassType) -> TypeBase | None;
     def _resolve_enum_value_type(enum_type: ClassType) -> TypeBase | None;
