@@ -309,7 +309,7 @@ impl TypeEvaluator.get_type_of_module(node_: ModulePath) -> TypeBase {
             mod_path = path_list[idx + offset];
             if idx == len(path_parts) - 1
                 and self._imports_own_module(node_, mod_path) {
-                self.emit_diag(E1137, npath, module=node_.dot_path_str);
+                self.emit_diag(E1139, npath, module=node_.dot_path_str);
             }
 
             if mod_path in self._module_type_cache {
@@ -533,7 +533,25 @@ impl TypeEvaluator.get_type_of_symbol(symbol: Symbol) -> TypeBase {
             self.pop_symbol_resolution(symbol);
         }
     }
+    published = self._published_class_type(symbol);
+    if published is not None {
+        return published;
+    }
     return UnknownType(is_incomplete=True);
+}
+
+impl TypeEvaluator._published_class_type(symbol: Symbol) -> (TypeBase | None) {
+    import from jaclang.compiler.frontend.unitree { Archetype }
+    decl = symbol.decl;
+    if decl is None {
+        return None;
+    }
+    owner = decl.name_of;
+    if not isinstance(owner, Archetype) {
+        return None;
+    }
+    published = owner.name_spec.type;
+    return published if isinstance(published, ClassType) else None;
 }
 
 impl TypeEvaluator.resolve_to_definition_symbol(symbol: Symbol) -> Symbol {

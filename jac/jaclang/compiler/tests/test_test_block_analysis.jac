@@ -159,9 +159,9 @@ test "a test file importing from its own module is an error at the import" {
         self_imports = [
             str(e)
             for e in prog.errors_had
-            if e.code and e.code.code == "E1137"
+            if e.code and e.code.code == "E1139"
         ];
-        assert len(self_imports) == 1 , f"expected one E1137, got {_error_codes(prog)}";
+        assert len(self_imports) == 1 , f"expected one E1139, got {_error_codes(prog)}";
         assert "widget" in self_imports[0]
             and "widget.test.jac" in self_imports[0] , self_imports;
     } finally {
@@ -177,7 +177,7 @@ test "a test file importing a sibling module is not flagged" {
     try {
         prog = JacProgram();
         prog.compile(mod_path);
-        assert "E1137" not in _error_codes(prog) , _error_codes(prog);
+        assert "E1139" not in _error_codes(prog) , _error_codes(prog);
     } finally {
         shutil.rmtree(base, ignore_errors=True);
     }
