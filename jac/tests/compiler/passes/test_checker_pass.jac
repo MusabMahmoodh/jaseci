@@ -406,10 +406,35 @@ glob CHECKER_DIRS: dict[(str, str)] = {
              []
          ),
          (
+             "sum_element_type",
+             "checker",
+             "checker_sum_element_type.jac",
+             1,
+             True,
+             [(0, """
+    Cannot assign list[float] to Iterable[int]
+    """)]
+         ),
+         (
+             "kwargs_literal_overload",
+             "checker",
+             "checker_kwargs_literal_overload.jac",
+             2,
+             True,
+             [
+                 (0, """
+    Cannot assign bytes to str
+    """),
+                 (1, """
+    'timeoutt'
+    """)
+             ]
+         ),
+         (
              "unannotated_reassignment_frozen",
              "checker",
              "checker_none_sentinel_reassignment.jac",
-             3,
+             4,
              True,
              [
                  (
@@ -429,7 +454,10 @@ glob CHECKER_DIRS: dict[(str, str)] = {
         count = "bad";  # <-- Error
         ^^^^^^^^^^^^^^
     """
-                 )
+                 ),
+                 (3, """
+    Cannot assign int | Literal[""] to str
+    """)
              ]
          ),
          (
@@ -723,6 +751,43 @@ glob CHECKER_DIRS: dict[(str, str)] = {
              1,
              True,
              [(0, "Cannot return Literal[\"a\"] | NoneType, expected NoneType")]
+         ),
+         (
+             "membership_narrowing",
+             "checker",
+             "checker_membership_narrowing.jac",
+             4,
+             True,
+             [
+                 (
+                     0,
+                     """
+Cannot return str | NoneType, expected str
+    return ak if ak in (other, "walker") else "obj";  # <-- Error: variable element
+    """
+                 ),
+                 (
+                     1,
+                     """
+Cannot return str | NoneType, expected str
+    return ak;  # <-- Error: only the literals are ruled out, ak is still str | None
+    """
+                 ),
+                 (
+                     2,
+                     """
+Cannot return str | NoneType, expected str
+        return ak;  # <-- Error: only the literals are ruled out, ak is still str | None
+    """
+                 ),
+                 (
+                     3,
+                     """
+Cannot assign Literal["a"] | Literal["b"] | Literal["c"] to Literal["c"]
+        c: Literal["c"] = k;  # <-- Error: not narrowed yet
+    """
+                 )
+             ]
          ),
          (
              "literal_ne_does_not_over_narrow",
