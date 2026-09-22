@@ -364,7 +364,7 @@ test "a served scheduled walker runs each tick without an error record" {
                 for t in server.scheduler._tasks
                 if t.name == "IntervalWalker"
             ][0];
-            walker_cls = server.introspector._walkers["IntervalWalker"];
+            walker_cls = server.introspector.find_target("IntervalWalker");
             served_log = sys.modules[walker_cls.__module__].execution_log;
             before = served_log.count("interval-walker");
             server.scheduler._execute(task);
