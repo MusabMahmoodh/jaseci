@@ -33,7 +33,7 @@ def capture_get(captured: io.StringIO) -> str {
     return captured.getvalue();
 }
 
-def _run(entrypoint: str, args: (list | None) = None, root_id: str = "") -> str {
+def _run(entrypoint: str, args: (list[str] | None) = None, root_id: str = "") -> str {
     captured = capture_start();
     execution.run(
         target=FIXTURE, entry_name=entrypoint, args=args or [], root_id=root_id
@@ -200,7 +200,9 @@ test "revoking a member ends access to org-owned records but not creator-owned o
         );
 
         # The hook runs on every access check a non-owner makes.
-        calls = _line(_run("count_hook_calls", args=[doc], root_id=carol), "HOOK_CALLS:");
+        calls = _line(
+            _run("count_hook_calls", args=[doc], root_id=carol), "HOOK_CALLS:"
+        );
         assert calls == "3" , f"expected one hook call per check, got {calls!r}";
     } finally {
         Jac.set_base_path(_orig);

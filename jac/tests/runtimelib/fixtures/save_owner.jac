@@ -55,7 +55,7 @@ walker create_for_org {
     can enter with Root entry {
         it = Item(label=self.label);
         try {
-            Jac.save(it, owner=UUID(self.org_id));
+            save(it, owner=UUID(self.org_id));
             print("ITEM:" + str(it.__jac__.id));
             print("OWNER:" + str(Jac.owner_of(it)));
         } except PermissionError {
