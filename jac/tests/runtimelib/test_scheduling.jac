@@ -344,7 +344,8 @@ class _Records(logging.Handler) {
 
 # The server registers a scheduled walker as a closure that runs the walker
 # itself and returns nothing. _execute used to spawn that return value, so every
-# tick logged "Invalid walker object" after the walker had already run.
+# tick logged "Invalid walker object" after the walker had already run. The
+# closure must also find a walker that is scheduled but not an endpoint.
 test "a served scheduled walker runs each tick without an error record" {
     import sys;
     import from tempfile { TemporaryDirectory }
@@ -354,8 +355,13 @@ test "a served scheduled walker runs each tick without an error record" {
             str(Path(FIXTURES) / "scheduled_tasks.jac"), base_path=tmpdir
         );
         records = _Records();
-        log = logging.getLogger("jaclang.server.task_scheduler");
-        log.addHandler(records);
+        logs = [
+            logging.getLogger("jaclang.server.task_scheduler"),
+            logging.getLogger("jaclang.serve")
+        ];
+        for log in logs {
+            log.addHandler(records);
+        }
         try {
             server: any = client.server;
             server._register_scheduled_tasks();
@@ -364,7 +370,11 @@ test "a served scheduled walker runs each tick without an error record" {
                 for t in server.scheduler._tasks
                 if t.name == "IntervalWalker"
             ][0];
-            walker_cls = server.introspector.find_target("IntervalWalker");
+            walker_cls = [
+                m
+                for (n, m, w) in server.introspector.scheduled_members()
+                if n == "IntervalWalker"
+            ][0];
             served_log = sys.modules[walker_cls.__module__].execution_log;
             before = served_log.count("interval-walker");
             server.scheduler._execute(task);
@@ -377,7 +387,9 @@ test "a served scheduled walker runs each tick without an error record" {
             ];
             assert not errors , errors;
         } finally {
-            log.removeHandler(records);
+            for log in logs {
+                log.removeHandler(records);
+            }
             client.close();
         }
     }
