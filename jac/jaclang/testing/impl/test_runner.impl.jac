@@ -720,12 +720,6 @@ impl run_file(
                 )
             ];
         }
-        # Importing the suite also imports its dependencies, and every module's
-        # `test` blocks register themselves as an import side effect. Take the
-        # entries this suite owns, keyed the way `JacTestCheck.add_test` writes
-        # them, so a dependency's tests run under its own file rather than once
-        # per dependent. A block can sit in the module or in either annex, and
-        # an annex in its own folder keys by that path, so all of them count.
         import from jaclang.compiler.driver.bccache { discover_annex_files }
         own_keys: set[str] = set();
         own_keys.add(os.path.realpath(strip_suffix(source)));
