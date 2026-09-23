@@ -601,7 +601,7 @@ impl run_file(
     import time;
     import from jaclang.testing.test { JacTestCheck }
     import from jaclang.testing.cl_test_runner { module_is_client, run_cl_test_file }
-    import from jaclang.jac0core.ext_registry { base_stem }
+    import from jaclang.jac0core.ext_registry { base_stem, strip_suffix }
     abs_path = os.path.abspath(filepath);
     outcomes: list[TestOutcome] = [];
     is_client = False;
@@ -720,8 +720,17 @@ impl run_file(
                 )
             ];
         }
+        # Importing the suite also imports its dependencies, and every module's
+        # `test` blocks register themselves as an import side effect. Take the
+        # entry this suite owns, keyed the way `JacTestCheck.add_test` writes
+        # it, so a dependency's tests run under its own file and not once per
+        # dependent.
+        own_key = os.path.realpath(strip_suffix(source));
         pending: list[any] = [];
-        for (_key, registered) in list(JacTestCheck.test_suite_path.items()) {
+        for (key, registered) in list(JacTestCheck.test_suite_path.items()) {
+            if os.path.realpath(key) != own_key {
+                continue;
+            }
             for info in list(registered) {
                 pending.append(info);
             }
