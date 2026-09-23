@@ -95,7 +95,7 @@ def run_in(proj: str, paths: list[str], directory: str = "") -> int {
     os.chdir(proj);
     reset_config();
     try {
-        return int(jac_test(paths, directory=directory));
+        return int(jac_test(paths=paths, directory=directory));
     } finally {
         os.chdir(old);
         reset_config();

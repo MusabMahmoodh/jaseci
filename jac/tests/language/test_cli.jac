@@ -705,8 +705,8 @@ test "an imported module's tests stay with their own file" {
     # block is named "this should not run" and asserts False. Running the
     # importer must run the importer's own two blocks and nothing else: a
     # dependency's tests belong to the dependency's file, which discovery
-    # collects in its own right, so running them here would both fail this
-    # run and execute them once per dependent across a suite.
+    # collects in its own right, so running them here would execute them
+    # once per dependent across a suite and report them under the wrong file.
     captured = io.StringIO();
     old_stdout = sys.stdout;
     rc = 1;
@@ -721,14 +721,21 @@ test "an imported module's tests stay with their own file" {
         sys.stdout = old_stdout;
     }
 
-    # Both of the importer's own blocks ran (so the selection is not simply
-    # empty), the imported block did not, and the run is green.
-    assert "2 passed" in out;
+    # Both of the importer's own blocks ran, so the selection is not simply
+    # empty, and the imported one did not. `first two` asserts `fib(1) == 0`
+    # and so fails on purpose, which is why the run is not green and why the
+    # `--test_name` case above cannot see any of this: its filter excludes
+    # the imported block whether or not the selection is right. One failure
+    # is the fixture's own; two would be the imported block running as well.
     assert "first two" in out;
     assert "from 2 to 10" in out;
+    assert "1 failed" in out , f"expected the fixture's own failure; got {out!r}";
+    assert "2 failed" not in out , (
+        f"the imported module's test ran and failed too; got {out!r}"
+    );
     assert "this should not run" not in out;
     assert "This test should not run after import." not in out;
-    assert rc == 0 , f"importing a module must not run its tests; got exit {rc}";
+    assert rc != 0;
 }
 
 
