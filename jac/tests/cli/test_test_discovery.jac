@@ -367,3 +367,46 @@ test "`[test] directories` collects every named root and nothing else" {
         f"both declared roots must run and gamma/ must not; got exit {rc}"
     );
 }
+
+
+"""Create a temp project whose test annex sits in a shared `test/` folder
+rather than beside its module, and whose module imports a dependency that
+carries an always-failing test of its own. Returns the project root."""
+def make_annex_folder_project -> str {
+    proj = tempfile.mkdtemp(prefix="jacannex-");
+    (Path(proj) / "jac.toml").write_text('[project]\nname = "r"\n');
+    (Path(proj) / "dep.jac").write_text("def one -> int {\n    return 1;\n}\n");
+    (Path(proj) / "dep.test.jac").write_text(
+        'test "dep runs under its own file" {\n    assert False;\n}\n'
+    );
+    (Path(proj) / "widget.jac").write_text(
+        "import from dep { one }\n\n\ndef two -> int {\n    return one() + 1;\n}\n"
+    );
+    annex_dir = Path(proj) / "test";
+    annex_dir.mkdir();
+    (annex_dir / "widget.test.jac").write_text(
+        'test "widget adds" {\n    assert two() == 2;\n}\n'
+    );
+    return proj;
+}
+
+
+test "a suite keeps its own tests and leaves its dependency's alone" {
+    # Two ways to get this wrong, and the annex folder separates them. The
+    # blocks in `test/widget.test.jac` register under the annex's own path
+    # while the suite resolves to `widget.jac`, so selecting the module's
+    # path alone finds nothing; running everything the import registered
+    # picks up `dep`'s always-failing block, which belongs to `dep.test.jac`
+    # and is collected there in its own right.
+    proj = make_annex_folder_project();
+    try {
+        rc = run_in(proj, [os.path.join("test", "widget.test.jac")]);
+    } finally {
+        shutil.rmtree(proj, ignore_errors=True);
+    }
+    # exit 5 = the annex's blocks were never found, exit 1 = dep's ran.
+    assert rc == 0 , (
+        "a suite must run the blocks it owns, wherever they are written, and "
+        f"not its dependency's; got exit {rc}"
+    );
+}

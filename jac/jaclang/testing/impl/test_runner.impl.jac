@@ -722,13 +722,22 @@ impl run_file(
         }
         # Importing the suite also imports its dependencies, and every module's
         # `test` blocks register themselves as an import side effect. Take the
-        # entry this suite owns, keyed the way `JacTestCheck.add_test` writes
-        # it, so a dependency's tests run under its own file and not once per
-        # dependent.
-        own_key = os.path.realpath(strip_suffix(source));
+        # entries this suite owns, keyed the way `JacTestCheck.add_test` writes
+        # them, so a dependency's tests run under its own file rather than once
+        # per dependent. A block can sit in the module or in either annex, and
+        # an annex in its own folder keys by that path, so all of them count.
+        import from jaclang.compiler.driver.bccache { discover_annex_files }
+        own_keys: set[str] = set();
+        own_keys.add(os.path.realpath(strip_suffix(source)));
+        for annex in (
+            discover_annex_files(source, ".test.jac")
+            + discover_annex_files(source, ".impl.jac")
+        ) {
+            own_keys.add(os.path.realpath(strip_suffix(annex)));
+        }
         pending: list[any] = [];
         for (key, registered) in list(JacTestCheck.test_suite_path.items()) {
-            if os.path.realpath(key) != own_key {
+            if os.path.realpath(key) not in own_keys {
                 continue;
             }
             for info in list(registered) {
