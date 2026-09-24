@@ -421,6 +421,20 @@ test "a deployed gateway serves its shell to every client, and only for page pat
             "media types are case-insensitive: a mixed-case JSON Accept keeps "
             f"the JSON 404 envelope too; got {mixed.status_code}"
         );
+        axios = client.get(
+            "/leaderboard", headers={"Accept": "application/json, text/plain, */*"}
+        );
+        assert axios.status_code == 404 , (
+            "an Accept that names JSON without HTML is an API client even with "
+            f"a trailing */*; got {axios.status_code}"
+        );
+        vendored = client.get(
+            "/leaderboard", headers={"Accept": "application/vnd.api+json"}
+        );
+        assert vendored.status_code == 200 and "staged-shell" in vendored.text , (
+            "a vendor JSON type does not name application/json, so the page "
+            f"answers with the shell; got {vendored.status_code}"
+        );
         stale = client.get(
             "/client.stale.js", headers={"Accept": "text/html,*/*;q=0.8"}
         );
