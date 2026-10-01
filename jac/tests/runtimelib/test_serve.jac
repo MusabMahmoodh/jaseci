@@ -360,7 +360,8 @@ test "repeated walker lookups do not re-resolve an unchanged module" {
         for _ in range(8) {
             introspector.get_walkers();
         }
-        assert introspector.collects == 1 , f"lookups re-collected {introspector.collects - 1} times";
+        extra = introspector.collects - 1;
+        assert introspector.collects == 1 , f"lookups re-collected {extra} times";
     }
 }
 
