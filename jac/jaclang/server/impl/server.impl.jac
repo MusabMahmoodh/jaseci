@@ -510,6 +510,11 @@ impl ModuleIntrospector._load_surface -> None {
         str(name): SurfaceEntry.from_dict(str(name), dict(rec))
         for (name, rec) in dict(manifest.get('surface', {}) or {}).items()
     };
+    self._served_walkers = sum(
+        1
+        for rec in self._surface.values()
+        if rec.kind == 'walker' and rec.is_served()
+    );
     self._manifest_root = str(manifest.get('root') or '');
 }
 
@@ -653,7 +658,7 @@ impl ModuleIntrospector._check_module_freshness -> None {
             break;
         }
     }
-    if not needs_refresh {
+    if not needs_refresh and len(self._walkers) < self._served_walkers {
         _fresh_walkers = self._collect_walkers();
         if set(_fresh_walkers.keys()) != set(self._walkers.keys()) {
             needs_refresh = True;

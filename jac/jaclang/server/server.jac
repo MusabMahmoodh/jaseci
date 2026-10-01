@@ -129,6 +129,7 @@ obj ModuleIntrospector {
         _bundle_builder: any = None,
         _bundle_lock: threading.Lock postinit,
         _surface: dict[(str, any)] = {},
+        _served_walkers: int = 0,
         _manifest_root: str = "",
         _spa_routes_loaded: bool = False,
         discover_endpoints: bool = True,
