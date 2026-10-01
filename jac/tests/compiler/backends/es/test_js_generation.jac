@@ -2610,7 +2610,7 @@ def host_probe(f: any, d: any, u: any, e: any, z: any) -> dict[any, any] {
         wrapper = js_code + (
             "\nconsole.log(JSON.stringify(Object.assign({}, probe(),"
             " host_probe(new File([], \"a.txt\"), new Date(),"
-            " new URL(\"http://x/\"), new Error(\"e\"), 0n))));\n"
+                " new URL(\"http://x/\"), new Error(\"e\"), 0n))));\n"
         );
         result = run_js_module(wrapper);
         assert result.returncode == 0 , (
