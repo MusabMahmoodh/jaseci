@@ -2607,11 +2607,12 @@ def host_probe(f: any, d: any, u: any, e: any, z: any) -> dict[any, any] {
     temp_path = write_temp_jac(jac_code);
     try {
         js_code = compile_fixture_to_js(temp_path);
-        wrapper = js_code + (
-            "\nconsole.log(JSON.stringify(Object.assign({}, probe(),"
-            " host_probe(new File([], \"a.txt\"), new Date(),"
+        wrapper = js_code
+            + (
+                "\nconsole.log(JSON.stringify(Object.assign({}, probe(),"
+                " host_probe(new File([], \"a.txt\"), new Date(),"
                 " new URL(\"http://x/\"), new Error(\"e\"), 0n))));\n"
-        );
+            );
         result = run_js_module(wrapper);
         assert result.returncode == 0 , (
             "object-truthiness run crashed in Node:\n"
