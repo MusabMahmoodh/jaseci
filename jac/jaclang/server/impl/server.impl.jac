@@ -1037,11 +1037,7 @@ impl ModuleIntrospector.walker_protocol(walker_name: str) -> APIProtocol {
     if walker_name not in walkers {
         return APIProtocol.HTTP;
     }
-    restspec: any = target_restspec(walkers[walker_name]);
-    if restspec?.protocol {
-        return APIProtocol(restspec.protocol);
-    }
-    return APIProtocol.HTTP;
+    return target_protocol(walkers[walker_name]);
 }
 
 impl ModuleIntrospector.function_protocol(func_name: str) -> APIProtocol {
@@ -1049,11 +1045,7 @@ impl ModuleIntrospector.function_protocol(func_name: str) -> APIProtocol {
     if func_name not in functions {
         return APIProtocol.HTTP;
     }
-    restspec: any = target_restspec(functions[func_name]);
-    if restspec?.protocol {
-        return APIProtocol(restspec.protocol);
-    }
-    return APIProtocol.HTTP;
+    return target_protocol(functions[func_name]);
 }
 
 

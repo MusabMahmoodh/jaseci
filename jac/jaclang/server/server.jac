@@ -62,6 +62,15 @@ def target_restspec(target: any) -> any {
 }
 
 
+def target_protocol(target: any) -> APIProtocol {
+    restspec: any = target_restspec(target);
+    if restspec?.protocol {
+        return APIProtocol(restspec.protocol);
+    }
+    return APIProtocol.HTTP;
+}
+
+
 def target_schedule_spec(target: any) -> any {
     return target.schedule_spec if target?.schedule_spec else None;
 }
