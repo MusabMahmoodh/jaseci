@@ -28,7 +28,7 @@ import from jaclang.compiler.backends.es.es_unparse {
     template_element_raw
 }
 import from jaclang.compiler.backends.es.primitives_es { ESDictEmitter, ESEmitCtx }
-import from jaclang.project.modresolver { convert_to_js_import_path }
+import from jaclang.compiler.backends.es.js_paths { convert_to_js_import_path }
 import from jaclang.compiler.driver.program { JacProgram }
 import from jaclang.compiler.driver.pass_driver { run_pass }
 
@@ -883,7 +883,11 @@ test "separated files" {
         "__jacSpawn(\"create_todo\", \"\", {\"text\": _jac.poly.call(input, \"strip\")}, "
             + "{\"app\": \"separated\", \"route\": \"/separated\", \"contract\": \"[\\\"separated\\\",\\\"separated.jac\\\",\\\"walker\\\",\\\"create_todo\\\"]\"});"
         in js_code
-    );
+    ) , js_code;
+    import from tests.compiler.backends.es.codegen_helpers { _js_compile_cache }
+    _js_compile_cache.pop(os.path.abspath(os.path.join(FIXTURES, client_fixture)));
+    warm = compile_fixture_to_js(client_fixture, FIXTURES);
+    assert warm == js_code , "a hydrated walker interface changed the service call";
 }
 
 test "separated defpub generates rpc stubs" {
@@ -1118,23 +1122,21 @@ test "bridged call duplicate kwarg is a compile error" {
     # reported as a compile-time error so the build fails fast rather than
     # silently emitting a JS object with a duplicated key.
     import from jaclang.compiler.driver.program { JacProgram }
-    import from jaclang.compiler.backends.es { EsastGenPass }
 
     fixture = os.path.join(FIXTURES, "svc_kwargs/sv_import_kwargs_dup.jac");
     prog = JacProgram();
-    ir = prog.compile(file_path=fixture, no_cgen=True);
-    run_pass(EsastGenPass, ir, prog);
+    prog.compile(file_path=fixture, no_cgen=True);
 
     dup_errs = [
         e
         for e in prog.errors_had
-        if "given both positionally and by keyword" in str(e)
+        if e.code is not None and e.code.code == "E1057"
     ];
     assert len(dup_errs) == 1 , (
-        "Expected exactly one E5080 collision diagnostic, got "
+        "Expected exactly one E1057 collision diagnostic, got "
         + str([str(e) for e in prog.errors_had])
     );
-    assert "name" in str(dup_errs[0]) and "greet" in str(dup_errs[0]);
+    assert "name" in str(dup_errs[0]);
 }
 
 test "bridged import nested in a client block emits no dead import" {
@@ -2292,6 +2294,37 @@ test "user-defined exception except is not a catch-all" {
 }
 
 
+test "user-defined exception except with a binding is not a catch-all" {
+    # The type checker stamps the class of an `except` clause, so a clause
+    # binding its exception (`except MyError as err`) resolves to a known
+    # user class. That must still emit `instanceof MyError`, not `if (true)`.
+    jac_code = "\"\"\"bound user-defined except is not a catch-all.\"\"\"\n\nobj MyError {}\ndef classify(which: int) -> str {\n    try {\n        if which == 1 { raise MyError(); }\n        raise ValueError(\"b\");\n    } except MyError as err { return \"mine\"; } except ValueError as ve { return \"ve\"; }\n    return \"none\";\n}\n";
+
+    temp_path = write_temp_jac(jac_code);
+    try {
+        js_code = compile_fixture_to_js(temp_path);
+        assert "instanceof MyError" in js_code , (
+            f"bound user-defined except must emit `instanceof MyError`, got:\n{js_code}"
+        );
+        wrapper = (
+            '"use strict";\n'
+            + js_code
+            + "\nif (classify(1) !== 'mine')"
+            + " { throw new Error('except MyError must catch MyError'); }"
+            + "\nif (classify(2) !== 've')"
+            + " { throw new Error('except MyError must NOT catch a ValueError'); }"
+            + "\nconsole.log('ok');\n"
+        );
+        result = run_js_module(wrapper);
+        assert result.returncode == 0 , (
+            f"bound user-defined except behaved as a catch-all:\nstderr={result.stderr!r}\njs:\n{js_code}"
+        );
+        assert "ok" in result.stdout;
+    } finally {
+        os.unlink(temp_path);
+    }
+}
+
 test "exception archetype subclassing a builtin extends _jac.exc.X" {
     jac_code = "\"\"\"custom exception base test.\"\"\"\n\nobj MyError(Exception) {}\ndef boom() -> int {\n    try { raise MyError(\"x\"); } except Exception { return 1; }\n    return 0;\n}\n";
 
@@ -2514,6 +2547,104 @@ def truthy_probe() -> dict[any, any] {
             assert got[key] == want , (
                 f"truthiness '{key}': got {got[key]!r}, expected {want!r}\n"
                 f"js:\n{js_code}"
+            );
+        }
+    } finally {
+        os.unlink(temp_path);
+    }
+}
+
+
+test "cl bool() judges objects by the Python data model, not dict keys (#9667)" {
+    # `bool(x)` judged every value whose `typeof` is "object" by its own
+    # enumerable keys -- Python's dict rule applied to host objects too. A
+    # File, Blob, Date or URL keeps its data on prototype getters, so
+    # `Object.keys(file)` is `[]` and `bool(file)` came out false: an upload
+    # button gated on `bool(selected_file)` never enabled. Only jac's own
+    # containers are judged by emptiness now; anything else is truthy unless
+    # it answers for itself through `__bool__` or `__len__`.
+    jac_code = """
+obj Plain {}
+
+obj Sized {
+    has items: list[int] = [];
+    def __len__ -> int { return len(self.items); }
+}
+
+obj Falsy {
+    has tag: str = "t";
+    def __bool__ -> bool { return False; }
+}
+
+def probe() -> dict[any, any] {
+    ed: dict[str, int] = {};
+    fd: dict[str, int] = {"a": 1};
+    return {
+        "empty_dict": 1 if bool(ed) else 0,
+        "full_dict": 1 if bool(fd) else 0,
+        "empty_list": 1 if bool([]) else 0,
+        "full_list": 1 if bool([1]) else 0,
+        "empty_set": 1 if bool(set()) else 0,
+        "empty_str": 1 if bool("") else 0,
+        "zero": 1 if bool(0) else 0,
+        "plain_arch": 1 if bool(Plain()) else 0,
+        "sized_empty": 1 if bool(Sized()) else 0,
+        "sized_full": 1 if bool(Sized(items=[1])) else 0,
+        "bool_false": 1 if bool(Falsy()) else 0
+    };
+}
+
+def host_probe(f: any, d: any, u: any, e: any, z: any) -> dict[any, any] {
+    return {
+        "host_file": 1 if bool(f) else 0,
+        "host_date": 1 if bool(d) else 0,
+        "host_url": 1 if bool(u) else 0,
+        "host_error": 1 if bool(e) else 0,
+        "bigint_zero": 1 if bool(z) else 0
+    };
+}
+""";
+    temp_path = write_temp_jac(jac_code);
+    try {
+        js_code = compile_fixture_to_js(temp_path);
+        wrapper = js_code
+            + (
+                "\nconsole.log(JSON.stringify(Object.assign({}, probe(),"
+                " host_probe(new File([], \"a.txt\"), new Date(),"
+                " new URL(\"http://x/\"), new Error(\"e\"), 0n))));\n"
+            );
+        result = run_js_module(wrapper);
+        assert result.returncode == 0 , (
+            "object-truthiness run crashed in Node:\n"
+            f"stderr={result.stderr!r}\njs:\n{js_code}"
+        );
+        got = json.loads(result.stdout.strip());
+        expected = {
+            # Containers keep deciding on emptiness.
+            "empty_dict": 0,
+            "full_dict": 1,
+            "empty_list": 0,
+            "full_list": 1,
+            "empty_set": 0,
+            "empty_str": 0,
+            "zero": 0,
+            # An archetype with no fields is an object, not an empty dict.
+            "plain_arch": 1,
+            # `__len__` and `__bool__` answer for the instance, as in Python.
+            "sized_empty": 0,
+            "sized_full": 1,
+            "bool_false": 0,
+            # Host objects carry their data on prototype getters.
+            "host_file": 1,
+            "host_date": 1,
+            "host_url": 1,
+            "host_error": 1,
+            # A bigint is an int to this runtime, so zero is falsy.
+            "bigint_zero": 0
+        };
+        for (key, want) in expected.items() {
+            assert got[key] == want , (
+                f"bool({key}): got {got[key]!r}, expected {want!r}\njs:\n{js_code}"
             );
         }
     } finally {

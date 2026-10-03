@@ -307,6 +307,16 @@ glob JAC_RUNTIME_JS_OBJECT: str = r"""{
       if (t === "object") return (o.constructor && o.constructor.name) || "object";
       return t;
     },
+    // A jac dict lowers to a plain object, so "judge this like a dict" has to
+    // mean that exact shape and not every value whose `typeof` is "object".
+    // Host objects (File, Blob, Date, Response, DOM nodes) and archetype
+    // instances carry their own prototype and are not dicts, however few own
+    // enumerable keys they happen to expose.
+    _isdict(o) {
+      if (o === null || o === undefined || typeof o !== "object") return false;
+      const p = Object.getPrototypeOf(o);
+      return p === Object.prototype || p === null;
+    },
     // --- per-runtime-type Python method tables (keyed by Python name) ---
     // Trivial native-mapped ops are inline; non-trivial ones delegate to the
     // shared `_jac.<type>` helpers (which the typed emitters also use), so the
@@ -448,11 +458,7 @@ glob JAC_RUNTIME_JS_OBJECT: str = r"""{
         if (_jac.poly._map[m]) return _jac.poly._map[m](o, ...args);
       } else if (o instanceof Uint8Array) {
         if (_jac.bytes[m]) return _jac.bytes[m](o, ...args);
-      } else if (
-        o !== null && o !== undefined && typeof o === "object"
-        && (Object.getPrototypeOf(o) === Object.prototype
-            || Object.getPrototypeOf(o) === null)
-      ) {
+      } else if (_jac.poly._isdict(o)) {
         // A plain object is a Python dict literal.
         if (_jac.poly._dict[m]) return _jac.poly._dict[m](o, ...args);
       }
@@ -1425,10 +1431,23 @@ glob JAC_RUNTIME_JS_OBJECT: str = r"""{
     },
     complex(re, im) { return {re: re || 0, im: im || 0}; },
     bool(x) {
-      if (x === null || x === undefined || x === false || x === 0 || x === "" || Number.isNaN(x)) return false;
+      // Python's truth test. Emptiness decides only for the containers jac
+      // actually lowers to; a value that defines `__bool__`/`__len__` answers
+      // for itself, and every other object is truthy. Judging all of `typeof
+      // "object"` by its own enumerable keys made host objects falsy -- a
+      // File, Blob, Date, Response or DOM node keeps its data on prototype
+      // getters, so `Object.keys(file)` is `[]` and `bool(file)` was false.
+      if (x === null || x === undefined || x === false || x === 0 || x === 0n
+          || x === "" || Number.isNaN(x)) return false;
+      if (typeof x !== "object") return true;
       if (Array.isArray(x)) return x.length > 0;
       if (x instanceof Set || x instanceof Map) return x.size > 0;
-      if (typeof x === "object") return Object.keys(x).length > 0;
+      if (x instanceof Uint8Array) return x.length > 0;
+      // Before the dunders, so a dict carrying a "__bool__" key is still
+      // judged by emptiness; an archetype is never a plain object.
+      if (_jac.poly._isdict(x)) return Object.keys(x).length > 0;
+      if (typeof x.__bool__ === "function") return x.__bool__() ? true : false;
+      if (typeof x.__len__ === "function") return x.__len__() !== 0;
       return true;
     },
     float(x) {
@@ -1937,58 +1956,9 @@ def point_jac_prelude_at(js: str, target: str = "") -> str {
     return js;
 }
 
-glob _OSP_CORE_JS_CACHE: list[str] = [];
-
 def build_osp_core_js -> str {
-    if _OSP_CORE_JS_CACHE {
-        return _OSP_CORE_JS_CACHE[0];
-    }
-    import from jaclang.compiler.backends.common.kernel_units {
-        es_pass_fingerprint,
-        load_unit_artifact,
-        osp_core_unit_path,
-        store_unit_artifact
-    }
-    import from jaclang.compiler.driver.program { JacProgram }
-    import from jaclang.compiler.backends.es.esast_gen_pass { EsastGenPass }
-    import from jaclang.compiler.backends.es.es_unparse { es_to_js }
-    import from jaclang.compiler.backends.es { estree as es }
-    import from jaclang.compiler.driver.compile_options { CompileOptions }
-    fp = es_pass_fingerprint();
-    cl_copy = osp_core_unit_path('cl');
-    cached = load_unit_artifact(cl_copy, "mjs", fp);
-    if cached is not None {
-        _OSP_CORE_JS_CACHE.append(cached);
-        return cached;
-    }
-    prog = JacProgram();
-    ir = prog.compile(
-        file_path=cl_copy,
-        options=CompileOptions(force_codespace='client', no_cgen=True)
-    );
-    import from jaclang.compiler.driver.pipeline { require_product, CompilationProduct }
-    if not require_product(prog, ir, CompilationProduct.CLIENT) {
-        raise RuntimeError("Could not compile OSP client runtime");
-    }
-    program = ir.gen.es_ast;
-    kept: list[es.Statement | es.ModuleDeclaration] = [];
-    if isinstance(program, es.Program) {
-        for stmt in program.body {
-            is_jac_rt = (
-                isinstance(stmt, es.ImportDeclaration)
-                and stmt.source is not None
-                and (stmt.source.value == JAC_PRELUDE_MODULE)
-            );
-            if is_jac_rt or isinstance(stmt, es.ExportNamedDeclaration) {
-                continue;
-            }
-            kept.append(stmt);
-        }
-    }
-    js = es_to_js(es.Program(body=kept));
-    store_unit_artifact(cl_copy, "mjs", fp, js);
-    _OSP_CORE_JS_CACHE.append(js);
-    return js;
+    import from jaclang.compiler.backends.es.client_kernel_cache { osp_core_js }
+    return osp_core_js();
 }
 
 def build_osp_driver_js -> str {
@@ -2002,7 +1972,7 @@ if (!globalThis.__jacOspCore) {
     osp_edge_peer,
     osp_spawn, osp_visit, osp_report, osp_disengage, osp_forget,
     osp_register_type, osp_register_desc, osp_node_desc, osp_is_a,
-    WalkerDesc, NodeDesc, Slot, OspRuntime
+    OspWalkerDesc, OspNodeDesc, OspSlot, OspRuntime
   };
 }
 var __ospC = globalThis.__jacOspCore;

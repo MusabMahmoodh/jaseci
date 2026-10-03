@@ -1,3 +1,4 @@
+import from jaclang.jac0core.cache_paths { atomic_write }
 import struct;
 import os;
 import hashlib;
@@ -49,9 +50,11 @@ glob S_REGULAR = 0x0,
 glob EXPORT_SYMBOL_FLAGS_KIND_REGULAR = 0x00;
 
 glob N_EXT = 0x01,
+     N_WEAK_DEF = 0x0080,
      N_TYPE_MASK = 0x0E,
      N_UNDF = 0x00,
-     N_SECT = 0x0E;
+     N_SECT = 0x0E,
+     N_STAB = 0xE0;
 
 glob ARM64_RELOC_UNSIGNED = 0,
      ARM64_RELOC_SUBTRACTOR = 1,
@@ -112,6 +115,27 @@ def _resolve_macho_name(
     return None;
 }
 
+
+def _local_code_symbols(
+    symbols: list[MachOSymbol], sym_idx_map: dict[int, tuple[str, int]]
+) -> list[tuple[str, int]] {
+    found: list[tuple[str, int]] = [];
+    for (sym_idx, sym) in enumerate(symbols) {
+        if (sym.n_type & N_EXT) != 0
+            or (sym.n_type & N_STAB) != 0
+            or (sym.n_type & N_TYPE_MASK) != N_SECT {
+            continue;
+        }
+        if not sym.name or sym.name.startswith("ltmp") or sym.name.startswith("L") {
+            continue;
+        }
+        place = sym_idx_map.get(sym_idx);
+        if place is not None and place[0] == "code" {
+            found.append((sym.name, place[1]));
+        }
+    }
+    return found;
+}
 
 def _trie_common_prefix(a: str, b: str) -> int {
     n = min(len(a), len(b));
@@ -677,6 +701,15 @@ impl MachOLinker._consolidate(
         dataoff_by_name[key] = sec_dataoff[mi];
     }
 
+    defined_ext: dict[str, int] = {};
+    for (i, s) in enumerate(self.symbols) {
+        if (s.n_type & N_TYPE_MASK) == N_SECT and (s.n_type & N_EXT) != 0 and s.name {
+            if s.name not in defined_ext {
+                defined_ext[s.name] = i;
+            }
+        }
+    }
+
     sym_remap: dict[int, int] = {};
     for (si, sym) in enumerate(syms) {
         ttype = sym.n_type & N_TYPE_MASK;
@@ -685,6 +718,24 @@ impl MachOLinker._consolidate(
             merged_idx = sec_to_merged[msi];
             base = self.sections[merged_idx].addr;
             new_val = base + sec_dataoff[msi] + (sym.n_value - sec_addrbase[msi]);
+            is_ext = (sym.n_type & N_EXT) != 0;
+            prior = defined_ext.get(sym.name) if (is_ext and sym.name) else None;
+            if prior is not None {
+                prior_sym = self.symbols[prior];
+                prior_weak = (prior_sym.n_desc & N_WEAK_DEF) != 0;
+                new_weak = (sym.n_desc & N_WEAK_DEF) != 0;
+                if prior_weak and not new_weak {
+                    self.symbols[prior] = MachOSymbol(
+                        name=sym.name,
+                        n_type=sym.n_type,
+                        n_sect=merged_idx + 1,
+                        n_desc=sym.n_desc,
+                        n_value=new_val
+                    );
+                }
+                sym_remap[si] = prior;
+                continue;
+            }
             ni = len(self.symbols);
             self.symbols.append(
                 MachOSymbol(
@@ -695,6 +746,9 @@ impl MachOLinker._consolidate(
                     n_value=new_val
                 )
             );
+            if is_ext and sym.name {
+                defined_ext[sym.name] = ni;
+            }
             sym_remap[si] = ni;
         } else {
             keep_val = sym.n_value if (sym.n_type & N_TYPE_MASK) == 0x02 else 0;
@@ -1202,7 +1256,11 @@ impl MachOLinker.build_executable -> bytes {
         }
     }
 
+    local_code_syms = _local_code_symbols(self.symbols, sym_idx_map);
     strtab_names: list[str] = [];
+    for (name, _) in local_code_syms {
+        strtab_names.append(name);
+    }
     for (name, _, _) in defined_syms {
         strtab_names.append(name);
     }
@@ -1212,6 +1270,7 @@ impl MachOLinker.build_executable -> bytes {
     (strtab_data, strtab_offsets) = _build_strtab(strtab_names, b" \x00");
 
     symtab_entries = bytearray();
+    n_local = len(local_code_syms);
     n_defined = len(defined_syms);
     n_undef = len(all_extern_syms);
 
@@ -1228,6 +1287,18 @@ impl MachOLinker.build_executable -> bytes {
     }
     out_sec_num_data = next_sec if len(data_data) > 0 else 0;
 
+    for (name, off) in local_code_syms {
+        symtab_entries.extend(
+            struct.pack(
+                "<IBBhQ",
+                strtab_offsets.get(name, 0),
+                N_SECT,
+                out_sec_num_text,
+                0,
+                text_sec_vaddr + off
+            )
+        );
+    }
     for (name, seg, off) in defined_syms {
         n_strx = strtab_offsets.get(name, 0);
         if seg == "code" {
@@ -1256,7 +1327,7 @@ impl MachOLinker.build_executable -> bytes {
     indirect_syms = bytearray();
 
     for i in range(num_extern_got) {
-        indirect_syms.extend(struct.pack("<I", n_defined + i));
+        indirect_syms.extend(struct.pack("<I", n_local + n_defined + i));
     }
 
     for i in range(len(internal_got_idx)) {
@@ -1264,7 +1335,7 @@ impl MachOLinker.build_executable -> bytes {
     }
 
     for i in range(num_stubs) {
-        indirect_syms.extend(struct.pack("<I", n_defined + i));
+        indirect_syms.extend(struct.pack("<I", n_local + n_defined + i));
     }
 
     cur_linkedit = linkedit_foff;
@@ -1672,16 +1743,16 @@ impl MachOLinker.build_executable -> bytes {
         LC_SYMTAB,
         24,
         symtab_off,
-        n_defined + n_undef,
+        n_local + n_defined + n_undef,
         strtab_off,
         len(strtab_data)
     );
     lc_off += 24;
 
     struct.pack_into("<II", output, lc_off, LC_DYSYMTAB, 80);
-    struct.pack_into("<II", output, lc_off + 8, 0, 0);
-    struct.pack_into("<II", output, lc_off + 16, 0, n_defined);
-    struct.pack_into("<II", output, lc_off + 24, n_defined, n_undef);
+    struct.pack_into("<II", output, lc_off + 8, 0, n_local);
+    struct.pack_into("<II", output, lc_off + 16, n_local, n_defined);
+    struct.pack_into("<II", output, lc_off + 24, n_local + n_defined, n_undef);
     struct.pack_into("<II", output, lc_off + 32, 0, 0);
     struct.pack_into("<II", output, lc_off + 40, 0, 0);
     struct.pack_into("<II", output, lc_off + 48, 0, 0);
@@ -2172,7 +2243,12 @@ impl MachOLinker.build_shared_object -> bytes {
             }
         }
     }
+
+    local_code_syms = _local_code_symbols(self.symbols, sym_idx_map);
     strtab_names: list[str] = [];
+    for (name, _) in local_code_syms {
+        strtab_names.append(name);
+    }
     for (name, _, _) in defined_syms {
         strtab_names.append(name);
     }
@@ -2181,6 +2257,7 @@ impl MachOLinker.build_shared_object -> bytes {
     }
     (strtab_data, strtab_offsets) = _build_strtab(strtab_names, b" \x00");
     symtab_entries = bytearray();
+    n_local = len(local_code_syms);
     n_defined = len(defined_syms);
     n_undef = len(all_extern_syms);
     out_sec_num_text = 1;
@@ -2195,6 +2272,18 @@ impl MachOLinker.build_shared_object -> bytes {
         next_sec += 1;
     }
     out_sec_num_data = next_sec if len(data_data) > 0 else 0;
+    for (name, off) in local_code_syms {
+        symtab_entries.extend(
+            struct.pack(
+                "<IBBhQ",
+                strtab_offsets.get(name, 0),
+                N_SECT,
+                out_sec_num_text,
+                0,
+                text_sec_vaddr + off
+            )
+        );
+    }
     for (name, seg, off) in defined_syms {
         n_strx = strtab_offsets.get(name, 0);
         if seg == "code" {
@@ -2221,13 +2310,13 @@ impl MachOLinker.build_shared_object -> bytes {
     INDIRECT_SYMBOL_LOCAL = 0x80000000;
     indirect_syms = bytearray();
     for i in range(num_extern_got) {
-        indirect_syms.extend(struct.pack("<I", n_defined + i));
+        indirect_syms.extend(struct.pack("<I", n_local + n_defined + i));
     }
     for i in range(len(internal_got_idx)) {
         indirect_syms.extend(struct.pack("<I", INDIRECT_SYMBOL_LOCAL));
     }
     for i in range(num_stubs) {
-        indirect_syms.extend(struct.pack("<I", n_defined + i));
+        indirect_syms.extend(struct.pack("<I", n_local + n_defined + i));
     }
 
     export_pairs: list[tuple[str, int]] = [];
@@ -2604,16 +2693,16 @@ impl MachOLinker.build_shared_object -> bytes {
         LC_SYMTAB,
         24,
         symtab_off,
-        n_defined + n_undef,
+        n_local + n_defined + n_undef,
         strtab_off,
         len(strtab_data)
     );
     lc_off += 24;
 
     struct.pack_into("<II", output, lc_off, LC_DYSYMTAB, 80);
-    struct.pack_into("<II", output, lc_off + 8, 0, 0);
-    struct.pack_into("<II", output, lc_off + 16, 0, n_defined);
-    struct.pack_into("<II", output, lc_off + 24, n_defined, n_undef);
+    struct.pack_into("<II", output, lc_off + 8, 0, n_local);
+    struct.pack_into("<II", output, lc_off + 16, n_local, n_defined);
+    struct.pack_into("<II", output, lc_off + 24, n_local + n_defined, n_undef);
     struct.pack_into("<II", output, lc_off + 32, 0, 0);
     struct.pack_into("<II", output, lc_off + 40, 0, 0);
     struct.pack_into("<II", output, lc_off + 48, 0, 0);
@@ -2767,7 +2856,7 @@ def _write_section_header(
 
 
 impl MachOLinker.link(
-    obj_bytes: bytes,
+    objects: list[bytes],
     output_path: str,
     needed_libs: list[str] = ["/usr/lib/libSystem.B.dylib"],
     symbol_lib_map: dict[str, str] = {},
@@ -2777,8 +2866,11 @@ impl MachOLinker.link(
     soname: str = "",
     archive_members: list[bytes] = []
 ) -> bool {
+    if not objects {
+        return False;
+    }
     linker = MachOLinker(
-        obj_data=obj_bytes,
+        obj_data=objects[0],
         sections=[],
         symbols=[],
         relocations=[],
@@ -2793,12 +2885,14 @@ impl MachOLinker.link(
         return False;
     }
 
-    for member in archive_members {
-        if not linker._merge_member(member) {
+    merged = 0;
+    for extra in list(objects[1:]) + list(archive_members) {
+        if not linker._merge_member(extra) {
             return False;
         }
+        merged += 1;
     }
-    if archive_members {
+    if merged {
         linker._allocate_commons();
         linker._resolve_crossrefs();
     }
@@ -2806,9 +2900,6 @@ impl MachOLinker.link(
     if not exe_bytes {
         return False;
     }
-    with open(output_path, "wb") as f {
-        f.write(exe_bytes);
-    }
-    os.chmod(output_path, 0o755);
+    atomic_write(output_path, exe_bytes, mode=0o755);
     return True;
 }
