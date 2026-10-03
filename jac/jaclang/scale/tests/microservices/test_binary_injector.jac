@@ -776,6 +776,57 @@ test "the boot cache is published once the server listens and restored on the ne
 }
 
 
+# A cold pod used to pip-install every vendored wheel into its empty volume on
+# each wake. The first pod of a bundle now publishes the installed venv and
+# later pods restore it instead of running `jac install` again.
+test "the installed venv is published by the first boot and restored without reinstalling" {
+    import subprocess;
+    import from jaclang.scale.deploy.target.kubernetes.runtime_bootstrap {
+        install_with_venv_snapshot
+    }
+    work = tempfile.mkdtemp();
+    bin_dir = os.path.join(work, "bin");
+    os.makedirs(bin_dir);
+    calls = os.path.join(work, "calls");
+    fake_jac = os.path.join(bin_dir, "jac");
+    with open(fake_jac, "w") as handle {
+        handle.write(
+            "#!/bin/sh\n" "echo \"$@\" >> "
+                + calls
+                + "\n"
+                "mkdir -p \"$APP/.jac/venv/lib\" && echo installed > \"$APP/.jac/venv/lib/dep.py\"\n"
+        );
+    }
+    os.chmod(fake_jac, 0o755);
+    snapshot = os.path.join(work, "vol", "venv-cache", "orders", "aaa.tar.gz");
+
+    def boot(app: str) {
+        os.makedirs(app);
+        cmd = install_with_venv_snapshot(snapshot).replace("/app", app);
+        subprocess.run(
+            ["bash", "-c", "set -euo pipefail; " + cmd],
+            check=True,
+            env={** os.environ, "PATH": bin_dir + ":" + os.environ["PATH"], "APP": app}
+        );
+    }
+
+    boot(os.path.join(work, "first"));
+    assert os.path.isfile(snapshot) , "the first boot did not publish its venv";
+    with open(calls) as handle {
+        assert handle.read().split() == ["install"];
+    }
+
+    second = os.path.join(work, "second");
+    boot(second);
+    with open(calls) as handle {
+        assert handle.read().split() == ["install"] , "the second boot reinstalled";
+    }
+    with open(os.path.join(second, ".jac", "venv", "lib", "dep.py")) as handle {
+        assert handle.read().strip() == "installed";
+    }
+}
+
+
 test "pod dep installs are routed to the shared-volume venv" {
     script = str(
         build_bootstrap_init_container(KubernetesConfig(), "jaseci/jaclang:dev")["args"][

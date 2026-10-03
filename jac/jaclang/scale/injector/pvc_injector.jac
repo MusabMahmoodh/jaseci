@@ -17,6 +17,7 @@ glob BUNDLE_VOLUME_NAME: str = "jac-bundles",
      PVC_BOOTSTRAP_NAME: str = "jac-pvc-bootstrap";
 
 glob BOOT_CACHE_DIR: str = "boot-cache",
+     VENV_CACHE_DIR: str = "venv-cache",
      BOOT_CACHE_MOUNT_PATH: str = "/jac-boot-cache";
 
 glob RUNTIME_UID: int = 1000,
@@ -40,6 +41,15 @@ def boot_cache_key(bundle_object_key: str) -> str {
         return "";
     }
     return "/".join([BOOT_CACHE_DIR, parts[1], parts[2][:-4]]);
+}
+
+
+def venv_cache_key(bundle_object_key: str) -> str {
+    parts = bundle_object_key.split("/");
+    if len(parts) != 3 or not parts[2].endswith(".jab") {
+        return "";
+    }
+    return "/".join([VENV_CACHE_DIR, parts[1], parts[2][:-4] + ".tar.gz"]);
 }
 
 
