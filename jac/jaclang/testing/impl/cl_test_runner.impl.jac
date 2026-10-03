@@ -45,6 +45,11 @@ impl _point_at_staged_runtime(js: str) -> str {
     );
 }
 
+impl _point_at_staged_prelude(js: str) -> str {
+    import from jaclang.compiler.backends.es.jac_runtime_js { point_jac_prelude_at }
+    return point_jac_prelude_at(js);
+}
+
 impl _stub_npm_imports(
     entry_js: str, staged: dict[str, str]
 ) -> tuple[str, dict[str, str], str, bool] {
@@ -367,6 +372,7 @@ impl run_cl_test_file(
     serve: bool = True,
     timeout: float = 120.0
 ) -> list[ClTestResult] {
+    filepath = module_entry_for(filepath);
     (module_js, tests, imports, server_imports) = compile_cl_module(filepath);
     if test_name {
         tests = [
@@ -445,6 +451,16 @@ impl _run_harness(
 
         staged: dict[str, str] = {};
 
+        import from jaclang.compiler.backends.es.jac_runtime_js {
+            JAC_PRELUDE_BASENAME,
+            build_jac_prelude_module
+        }
+        staged[JAC_PRELUDE_BASENAME] = build_jac_prelude_module();
+        module_js = _point_at_staged_prelude(module_js);
+        for dep_name in list(dep_files.keys()) {
+            dep_files[dep_name] = _point_at_staged_prelude(dep_files[dep_name]);
+        }
+
         if ("@jac/runtime" in imports) or ("@jac/runtime" in dep_imports) {
             import from jaclang.client.client_surface { prepend_active_runtime_globals }
             module_js = _point_at_staged_runtime(
@@ -469,8 +485,11 @@ impl _run_harness(
                 runtime_src,
                 allow_runtime=True
             );
+            for support_name in list(support.keys()) {
+                support[support_name] = _point_at_staged_prelude(support[support_name]);
+            }
             staged.update(support);
-            staged["jac_runtime.js"] = runtime_js;
+            staged["jac_runtime.js"] = _point_at_staged_prelude(runtime_js);
         }
 
         for (dep_name, dep_js) in dep_files.items() {
@@ -535,8 +554,18 @@ impl _parse_results(stdout: str, tests: list[any]) -> (list[ClTestResult] | None
     return None;
 }
 
+impl module_entry_for(filepath: str) -> str {
+    import from jaclang.jac0core.ext_registry { is_annex }
+    path = str(filepath);
+    if not is_annex(os.path.basename(path)) {
+        return path;
+    }
+    import from jaclang.compiler.driver.bccache { discover_base_file }
+    return discover_base_file(path) or path;
+}
+
 impl module_is_client(filepath: str) -> bool {
-    path = os.path.abspath(str(filepath));
+    path = os.path.abspath(module_entry_for(str(filepath)));
     if path in _COLOR_CACHE {
         return _COLOR_CACHE[path];
     }

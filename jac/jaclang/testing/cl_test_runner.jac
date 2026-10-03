@@ -75,6 +75,7 @@ def _compile_runtime -> tuple[str, str];
 
 
 def _point_at_staged_runtime(js: str) -> str;
+def _point_at_staged_prelude(js: str) -> str;
 
 def _stub_npm_imports(
     entry_js: str, staged: dict[str, str]
@@ -120,6 +121,8 @@ def _run_harness(
 ) -> list[ClTestResult];
 
 def _parse_results(stdout: str, tests: list[any]) -> (list[ClTestResult] | None);
+
+def module_entry_for(filepath: str) -> str;
 
 def module_is_client(filepath: str) -> bool;
 def is_cl_test_file(filepath: str) -> bool;

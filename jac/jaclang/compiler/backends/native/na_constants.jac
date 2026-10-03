@@ -1,15 +1,7 @@
-glob NATIVE_TIME_FUNCS: set[str] = {
-         "time",
-         "monotonic",
-         "perf_counter",
-         "time_ns",
-         "monotonic_ns",
-         "perf_counter_ns",
-         "sleep",
-
-     };
+glob NATIVE_COPY_FUNCS: set[str] = {"copy", "deepcopy"};
 glob NATIVE_OS_FUNCS: set[str] = {
          "getpid",
+         "listdir",
          "getcwd",
          "getenv",
          "chdir",
@@ -57,11 +49,23 @@ glob RC_COLOR_BLACK: int = 0,
      RC_COLOR_GRAY: int = 2,
      RC_COLOR_PURPLE: int = 3,
      RC_BUFFERED_BIT: int = 4,
+     RC_UNTRACED_BIT: int = 8,
      RC_COLOR_SHIFT: int = 48,
-     RC_CYCLE_THRESHOLD: int = 1000;
+     RC_CYCLE_THRESHOLD: int = 1000,
+     RC_CYCLE_PACE: int = 4;
+
+glob JACVAL_ELLIPSIS_TAG: int = 9;
+
+glob CLASS_DISPLAY_OFF: int = 24;
 glob LIVE_NODE_ID_OFF: int = 0,
      LIVE_NODE_USER_OFF: int = 8,
      LIVE_NODE_TAG_OFF: int = 16,
      LIVE_NODE_RC_OFF: int = 24,
      LIVE_NODE_NEXT_OFF: int = 32,
      LIVE_NODE_SIZE: int = 40;
+
+glob NATIVE_CONTAINER_CODES: dict[str, str] = {"dict": "natdict", "set": "natset"};
+
+glob EXC_LINEAGE_BITS: int = 11,
+     EXC_LINEAGE_SLOTS: int = 2048,
+     EXC_LINEAGE_MIX: int = -7046029254386353131;
