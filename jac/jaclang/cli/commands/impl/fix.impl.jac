@@ -643,9 +643,9 @@ def _priv_top_decls(mod: any) -> dict[str, any] {
     return out;
 }
 
-def _resolve_project_import(imp: any, importer: str, proj_root: str) -> str {
+def _resolve_project_import(module_path: any, importer: str, proj_root: str) -> str {
     try {
-        resolved = imp.from_loc.resolve_relative_path();
+        resolved = module_path.resolve_relative_path();
         if isinstance(resolved, str)
             and resolved.endswith('.jac')
             and os.path.isfile(resolved) {
@@ -653,8 +653,8 @@ def _resolve_project_import(imp: any, importer: str, proj_root: str) -> str {
         }
     } except Exception {}
     try {
-        dotted = imp.from_loc.dot_path_str;
-        level = imp.from_loc.level;
+        dotted = module_path.dot_path_str;
+        level = module_path.level;
     } except Exception {
         return '';
     }
@@ -742,14 +742,14 @@ def _access_plan(proj_root: str) -> tuple[list[AccessRewrite], list[str]] {
             continue;
         }
         entry_path = os.path.realpath(entry_path);
-        visited: set[str] = set();
-        queue: list[str] = [entry_path];
+        visited: set[tuple[str, bool]] = set();
+        queue: list[tuple[str, bool]] = [(entry_path, True)];
         while queue {
-            path = queue.pop(0);
-            if path in visited {
+            (path, is_entry) = queue.pop(0);
+            if (path, is_entry) in visited {
                 continue;
             }
-            visited.add(path);
+            visited.add((path, is_entry));
             mod = _parse_module(path);
             if mod is None {
                 notes.append(f"{path}: does not parse, skipped");
@@ -768,7 +768,6 @@ def _access_plan(proj_root: str) -> tuple[list[AccessRewrite], list[str]] {
                     "Change it to :protect if it was meant to be an endpoint (left unchanged)."
                 );
             }
-            is_entry = path == entry_path;
             for (name, decl) in plain.items() {
                 if isinstance(decl, uni.Ability) {
                     if is_entry {
@@ -789,10 +788,17 @@ def _access_plan(proj_root: str) -> tuple[list[AccessRewrite], list[str]] {
                 }
             }
             for imp in mod.get_all_sub_nodes(uni.Import) {
-                if not (imp.is_jac and imp.from_loc is not None) {
+                if not imp.is_jac {
                     continue;
                 }
-                target = _resolve_project_import(imp, path, ws.project_root);
+                module_path = imp.from_loc;
+                if imp.is_absorb and imp.items {
+                    module_path = imp.items[0];
+                }
+                if module_path is None {
+                    continue;
+                }
+                target = _resolve_project_import(module_path, path, ws.project_root);
                 if not target
                     or not target.startswith(
                         os.path.realpath(ws.project_root) + os.sep
@@ -817,7 +823,8 @@ def _access_plan(proj_root: str) -> tuple[list[AccessRewrite], list[str]] {
                         }
                     }
                 }
-                queue.append(target);
+
+                queue.append((target, is_entry and imp.is_absorb));
             }
         }
     }
@@ -910,6 +917,46 @@ def _fix_access(paths: list[str], dry_run: bool) -> int {
     return 0;
 }
 
+def _fix_dependencies(paths: list[str], dry_run: bool) -> int {
+    import from jaclang.packages.migrate { find_manifests, migrate_manifest }
+    manifests = find_manifests(paths);
+    if not manifests {
+        console.error("No jac.toml found to migrate.");
+        return 1;
+    }
+    changed = 0;
+    for manifest in manifests {
+        result = migrate_manifest(manifest);
+        if not result.moved {
+            continue;
+        }
+        changed += 1;
+        verb = "Would move" if dry_run else "Moved";
+        console.print(
+            f"{verb} {len(result.moved)} Python dependenc(ies) to [*.pypi] in {manifest}",
+            style="bold"
+        );
+        for moved_key in result.moved {
+            console.print(f"  {moved_key}", style="muted");
+        }
+        if not result.lossless {
+            console.warning(
+                f"{manifest}: the file could not be edited in place, so it was "
+                "rewritten; comments inside the dependency tables were dropped"
+            );
+        }
+        if not dry_run {
+            manifest.write_text(result.text, encoding="utf-8");
+        }
+    }
+    if not changed {
+        console.success(
+            "Every jac.toml already keeps Python packages in [dependencies.pypi]."
+        );
+    }
+    return 0;
+}
+
 impl fix(
     target: str, paths: list[str], dry_run: bool = False, strip_only: bool = False
 ) -> int {
@@ -919,8 +966,13 @@ impl fix(
     if target == 'access' {
         return _fix_access(paths, dry_run);
     }
+    if target == 'dependencies' {
+        return _fix_dependencies(paths, dry_run);
+    }
     if target != 'placement' {
-        console.error(f"Unknown fix target '{target}'. Available: placement, access");
+        console.error(
+            f"Unknown fix target '{target}'. Available: placement, access, dependencies"
+        );
         return 1;
     }
     if isinstance(paths, str) {

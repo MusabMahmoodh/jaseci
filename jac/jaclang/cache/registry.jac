@@ -41,7 +41,8 @@ glob RETIRED: tuple[str, ...] = (
          "bytecode",
          "bootstrap",
          "toolchains/llvm-cbe",
-         "toolchains/cocoapods"
+         "toolchains/cocoapods",
+         "jir/kernel_units"
      ),
      GENERATION_PATTERN: str = "[0-9a-f]" * 16,
      BUCKETS: list[Bucket] = [
@@ -74,10 +75,10 @@ glob RETIRED: tuple[str, ...] = (
              summary="pre-resolved typeshed catalogs"
          ),
          Bucket(
-             name="jir-kernel-units",
-             relpath="jir/kernel_units",
-             policy=Policy(ttl_days=14.0, keep_match=KeepMatch.FRAGMENT),
-             summary="native kernel unit sources and their compiled artifacts"
+             name="jir-jit",
+             relpath="jir/jit",
+             policy=Policy(ttl_days=14.0, pattern="*.bc"),
+             summary="optimized whole-program images for the in-process JIT, one per link plan"
          ),
          Bucket(
              name="jir-digests",
@@ -86,10 +87,44 @@ glob RETIRED: tuple[str, ...] = (
              summary="compiler source digests, one per checkout"
          ),
          Bucket(
+             name="stage0",
+             relpath="stage0",
+             policy=Policy(
+                 ttl_days=30.0, pattern="[0-9a-f]" * 40, markers=[".stage0.json"]
+             ),
+             summary="pinned stage-0 compiler snapshots that build the kernel, one per commit"
+         ),
+         Bucket(
              name="apps",
              relpath="apps",
              policy=Policy(ttl_days=30.0, markers=[".used"]),
              summary="materialized app images (.jab), content-keyed"
+         ),
+         Bucket(
+             name="pkgs",
+             relpath="pkgs",
+             policy=Policy(
+                 ttl_days=90.0,
+                 depth=3,
+                 markers=[".jac-package.json"],
+                 temp_patterns=[".fetch-*"],
+                 temp_lock=TempLock.SIBLINGS
+             ),
+             summary="Jac packages by name, version and content hash (read-only, shared)",
+             root_env="JAC_PACKAGE_STORE",
+             root_prefix="pkgs"
+         ),
+         Bucket(
+             name="pkg-git",
+             relpath="pkg-git",
+             policy=Policy(ttl_days=30.0, temp_patterns=["*.lock"]),
+             summary="git mirrors and checkouts behind git package dependencies"
+         ),
+         Bucket(
+             name="pkg-index",
+             relpath="pkg-index",
+             policy=Policy(ttl_days=30.0, depth=3, pattern="*.json"),
+             summary="cached package index entries, one file per package and registry"
          ),
          Bucket(
              name="scale-binaries",
