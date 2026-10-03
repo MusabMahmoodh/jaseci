@@ -713,6 +713,69 @@ test "without a known binary digest the toolchain is always unpacked" {
 }
 
 
+def _run_boot_cache(script: str, cache_dir: str, state: str) {
+    import subprocess;
+    import from jaclang.scale.injector.pvc_injector { BOOT_CACHE_MOUNT_PATH }
+    subprocess.run(
+        [
+            "bash",
+            "-c",
+            "set -euo pipefail; " + script.replace(BOOT_CACHE_MOUNT_PATH, cache_dir)
+        ],
+        check=True,
+        env={** os.environ, "JAC_CACHE_HOME": state, "JAC_SV_NAME": "orders"}
+    );
+}
+
+
+# The first pod of a bundle compiles what the sealed bundle does not carry and
+# publishes that compile cache; every later wake restores it instead of
+# compiling again.
+test "the boot cache is published once the server listens and restored on the next boot" {
+    import socket;
+    import time;
+    import from jaclang.scale.deploy.target.kubernetes.runtime_bootstrap {
+        boot_cache_script
+    }
+    work = tempfile.mkdtemp();
+    state = os.path.join(work, "state");
+    cache_dir = os.path.join(work, "boot-cache");
+    module_dir = os.path.join(state, "jir", "modules", "k");
+    os.makedirs(module_dir);
+    os.makedirs(cache_dir);
+    compiled = os.path.join(module_dir, "region_native.jir");
+    with open(compiled, "wb") as handle {
+        handle.write(b"compiled");
+    }
+    server = socket.socket();
+    server.bind(("127.0.0.1", 0));
+    server.listen(4);
+    port = server.getsockname()[1];
+    snapshot = os.path.join(cache_dir, "orders.tar");
+    try {
+        _run_boot_cache(boot_cache_script(port), cache_dir, state);
+        deadline = time.monotonic() + 30;
+        while not os.path.exists(snapshot) and time.monotonic() < deadline {
+            time.sleep(0.2);
+        }
+    } finally {
+        server.close();
+    }
+    assert os.path.exists(snapshot) , "the first boot never published its cache";
+    with tarfile.open(snapshot) as tar {
+        assert any(
+            n.endswith("jir/modules/k/region_native.jir") for n in tar.getnames()
+        );
+    }
+
+    os.remove(compiled);
+    _run_boot_cache(boot_cache_script(port), cache_dir, state);
+    with open(compiled, "rb") as handle {
+        assert handle.read() == b"compiled";
+    }
+}
+
+
 test "pod dep installs are routed to the shared-volume venv" {
     script = str(
         build_bootstrap_init_container(KubernetesConfig(), "jaseci/jaclang:dev")["args"][

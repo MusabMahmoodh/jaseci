@@ -364,6 +364,8 @@ test "app pods unpack and bootstrap in one init container and probe for a fast f
             root_file="main.jac"
         )
     );
+    builder._bundle_object_key = "bundles/jac-shop/aaa.jab";
+    builder._toolchain_object_key = "toolchain/jac-shop/bbb.tar.gz";
     app_cfg = AppConfig(code_folder=str(_K8S_E2E_FIXTURE), app_name="jac-shop");
     cart = builder.generate_service_pod_specs(app_cfg, "img")["cart_app"];
     names = [c["name"] for c in cart["initContainers"]];
@@ -383,6 +385,17 @@ test "app pods unpack and bootstrap in one init container and probe for a fast f
         * container["startupProbe"]["failureThreshold"]
         == 900;
     assert container["readinessProbe"]["initialDelaySeconds"] == 0;
+    import from jaclang.scale.injector.pvc_injector { BOOT_CACHE_MOUNT_PATH }
+    cache_mounts = [
+        m
+        for m in container["volumeMounts"]
+        if m["mountPath"] == BOOT_CACHE_MOUNT_PATH
+    ];
+    assert len(cache_mounts) == 1 , container["volumeMounts"];
+    cache_key = cache_mounts[0]["subPath"];
+    assert cache_key.startswith("boot-cache/") , cache_key;
+    assert f"mkdir -p {BUNDLE_MOUNT_PATH}/{cache_key}" in script;
+    assert cache_key in bundle_keys_from_pod_spec(cart);
 }
 
 

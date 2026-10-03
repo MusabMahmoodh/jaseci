@@ -6,7 +6,8 @@ import from jaclang.scale.injector.bundle {
 }
 import from jaclang.scale.injector.pvc_injector {
     BUNDLE_VOLUME_NAME,
-    BUNDLE_MOUNT_PATH
+    BUNDLE_MOUNT_PATH,
+    BOOT_CACHE_MOUNT_PATH
 }
 import from jaclang.scale.deploy.target.kubernetes.kubernetes_config {
     KubernetesConfig
@@ -132,14 +133,55 @@ def runtime_container_env -> list[dict[str, str]] {
 }
 
 
+def boot_cache_script(port: int) -> str {
+    cache = BOOT_CACHE_MOUNT_PATH;
+    snap = cache + '/${JAC_SV_NAME:-app}.tar';
+    publish = (
+        'CH="${JAC_CACHE_HOME:-$HOME/.cache/jac}"; P=""; '
+        'for d in "${CH#/}/jir/modules" "${CH#/}/jir/jit" app/.jac/cache; do '
+        '[ -d "/$d" ] && P="$P $d"; done; '
+        '[ -n "$P" ] && tar -cf "'
+        + snap
+        + '.$$" -C / $P 2>/dev/null ' '&& mv -f "'
+        + snap
+        + '.$$" "'
+        + snap
+        + '"; '
+    );
+    return (
+        'if [ -f "'
+        + snap
+        + '" ]; then ' 'tar -xf "'
+        + snap
+        + '" -C / --skip-old-files 2>/dev/null || true; ' 'elif [ -d '
+        + cache
+        + ' ] && [ -w '
+        + cache
+        + ' ]; then ( '
+        'for _ in $(seq 1 900); do sleep 1; '
+        'if (exec 3<>/dev/tcp/127.0.0.1/'
+        + str(port)
+        + ') 2>/dev/null; then ' 'sleep 2; '
+        + publish
+        + 'break; fi; done ) & fi; '
+    );
+}
+
+
 def build_bootstrap_init_container(
-    k8s_config: KubernetesConfig, base_image: str, unpack_script: str = ""
+    k8s_config: KubernetesConfig,
+    base_image: str,
+    unpack_script: str = "",
+    boot_cache_dir: str = ""
 ) -> dict[str, any] {
     import from jaclang.scale.injector.binary { OFFICIAL_IMAGE }
     prefer_image_binary = base_image.startswith(f"{OFFICIAL_IMAGE}:experimental-");
     commands = build_runtime_install_commands(k8s_config, prefer_image_binary);
     if unpack_script {
         commands.insert(0, "( " + unpack_script + " )");
+    }
+    if boot_cache_dir {
+        commands.append("{ mkdir -p " + boot_cache_dir + " 2>/dev/null || true; }");
     }
     commands.append(f'cd {APP_MOUNT_PATH}');
 
