@@ -1893,9 +1893,11 @@ obj ManifestBuilder {
             BOOT_CACHE_MOUNT_PATH,
             BUNDLE_MOUNT_PATH,
             BUNDLE_VOLUME_NAME,
-            boot_cache_key
+            boot_cache_key,
+            venv_cache_key
         }
         cache_key = boot_cache_key(self._injector_object_key());
+        venv_key = venv_cache_key(self._injector_object_key());
         if cache_key {
             container["volumeMounts"] = list(container.get("volumeMounts", []))
                 + [
@@ -1916,7 +1918,8 @@ obj ManifestBuilder {
                 unpack_script=injector.unpack_script(),
                 boot_cache_dir=(BUNDLE_MOUNT_PATH + "/" + cache_key)
                     if cache_key
-                    else ""
+                    else "",
+                venv_snapshot=(BUNDLE_MOUNT_PATH + "/" + venv_key) if venv_key else ""
             )
         );
         return spec;

@@ -396,6 +396,7 @@ test "app pods unpack and bootstrap in one init container and probe for a fast f
     assert cache_key.startswith("boot-cache/") , cache_key;
     assert f"mkdir -p {BUNDLE_MOUNT_PATH}/{cache_key}" in script;
     assert cache_key in bundle_keys_from_pod_spec(cart);
+    assert "venv-cache/jac-shop/aaa.tar.gz" in bundle_keys_from_pod_spec(cart);
 }
 
 
