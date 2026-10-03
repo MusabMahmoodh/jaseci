@@ -416,7 +416,11 @@ test "E2036: a stub with its impl and overloads are not duplicates" {
 }
 
 test "E2036: a Python module may redefine a name" {
-    (prog, _) = compile_only("scope_E2036_py_redefinition.py");
+    prog = JacProgram();
+    prog.compile(
+        use_str="def pick() -> int:\n    return 1\n\n\ndef pick() -> int:\n    return 2\n",
+        file_path="redefine.py"
+    );
     assert not has_diagnostic_code(prog, "E2036");
 }
 
