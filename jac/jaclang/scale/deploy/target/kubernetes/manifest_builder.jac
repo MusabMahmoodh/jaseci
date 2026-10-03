@@ -1772,17 +1772,15 @@ obj ManifestBuilder {
     def _pod_entrypoint -> dict[str, any] {
         import from jaclang.scale.injector.bundle { APP_MOUNT_PATH }
         import from jaclang.scale.deploy.target.kubernetes.runtime_bootstrap {
-            boot_cache_script,
             build_service_apt_prefix
         }
         apt_prefix = build_service_apt_prefix(self.k8s_config);
-        boot_cache = boot_cache_script(self.k8s_config.container_port);
         return {
             "command": ["bash", "-c"],
             "args": [
                 "set -euo pipefail; "
                 f"cd {APP_MOUNT_PATH}; "
-                f"{apt_prefix}{boot_cache}"
+                f"{apt_prefix}"
                 'if [ "$JAC_SV_NAME" = "__gateway__" ]; then '
                 "  exec jac scale gateway; "
                 "else "
@@ -1890,24 +1888,10 @@ obj ManifestBuilder {
         spec.pop("_jac_meta", None);
 
         import from jaclang.scale.injector.pvc_injector {
-            BOOT_CACHE_MOUNT_PATH,
             BUNDLE_MOUNT_PATH,
-            BUNDLE_VOLUME_NAME,
-            boot_cache_key,
             venv_cache_key
         }
-        cache_key = boot_cache_key(self._injector_object_key());
         venv_key = venv_cache_key(self._injector_object_key());
-        if cache_key {
-            container["volumeMounts"] = list(container.get("volumeMounts", []))
-                + [
-                    {
-                        "name": BUNDLE_VOLUME_NAME,
-                        "mountPath": BOOT_CACHE_MOUNT_PATH,
-                        "subPath": cache_key
-                    }
-                ];
-        }
         import from jaclang.scale.deploy.target.kubernetes.runtime_bootstrap {
             build_bootstrap_init_container
         }
@@ -1916,9 +1900,6 @@ obj ManifestBuilder {
                 self.k8s_config,
                 self.k8s_config.python_image,
                 unpack_script=injector.unpack_script(),
-                boot_cache_dir=(BUNDLE_MOUNT_PATH + "/" + cache_key)
-                    if cache_key
-                    else "",
                 venv_snapshot=(BUNDLE_MOUNT_PATH + "/" + venv_key) if venv_key else ""
             )
         );

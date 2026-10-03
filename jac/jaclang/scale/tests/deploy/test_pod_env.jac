@@ -385,17 +385,6 @@ test "app pods unpack and bootstrap in one init container and probe for a fast f
         * container["startupProbe"]["failureThreshold"]
         == 900;
     assert container["readinessProbe"]["initialDelaySeconds"] == 0;
-    import from jaclang.scale.injector.pvc_injector { BOOT_CACHE_MOUNT_PATH }
-    cache_mounts = [
-        m
-        for m in container["volumeMounts"]
-        if m["mountPath"] == BOOT_CACHE_MOUNT_PATH
-    ];
-    assert len(cache_mounts) == 1 , container["volumeMounts"];
-    cache_key = cache_mounts[0]["subPath"];
-    assert cache_key.startswith("boot-cache/") , cache_key;
-    assert f"mkdir -p {BUNDLE_MOUNT_PATH}/{cache_key}" in script;
-    assert cache_key in bundle_keys_from_pod_spec(cart);
     assert "venv-cache/jac-shop/aaa.tar.gz" in bundle_keys_from_pod_spec(cart);
 }
 
