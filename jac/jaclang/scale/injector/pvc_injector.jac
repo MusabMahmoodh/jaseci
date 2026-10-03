@@ -16,6 +16,9 @@ glob BUNDLE_VOLUME_NAME: str = "jac-bundles",
      BUNDLE_MOUNT_PATH: str = "/jac-bundles",
      PVC_BOOTSTRAP_NAME: str = "jac-pvc-bootstrap";
 
+glob BOOT_CACHE_DIR: str = "boot-cache",
+     BOOT_CACHE_MOUNT_PATH: str = "/jac-boot-cache";
+
 glob RUNTIME_UID: int = 1000,
      RUNTIME_GID: int = 1000,
      VOLUME_PERMS_NAME: str = "jac-volume-perms";
@@ -31,9 +34,29 @@ def bundle_pvc_path(object_key: str) -> str {
 }
 
 
+def boot_cache_key(bundle_object_key: str) -> str {
+    parts = bundle_object_key.split("/");
+    if len(parts) != 3 or not parts[2].endswith(".jab") {
+        return "";
+    }
+    return "/".join([BOOT_CACHE_DIR, parts[1], parts[2][:-4]]);
+}
+
+
 def bundle_keys_from_pod_spec(pod_spec: dict[str, any]) -> list[str] {
     prefix = f"{BUNDLE_MOUNT_PATH}/";
     keys: list[str] = [];
+    for raw in list(pod_spec.get("containers") or []) {
+        for mount in list(dict(raw).get("volumeMounts") or []) {
+            sub_path = str(dict(mount).get("subPath") or "");
+            if dict(mount).get("name") == BUNDLE_VOLUME_NAME
+                and sub_path
+                and not sub_path.startswith(".")
+                and sub_path not in keys {
+                keys.append(sub_path);
+            }
+        }
+    }
     for raw in list(pod_spec.get("initContainers") or []) {
         container = dict(raw);
         for arg in list(container.get("args") or []) {
