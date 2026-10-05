@@ -90,7 +90,7 @@ def _walker_callback(
     requires_auth: bool
 ) -> Callable[..., (TransportResponse | Response)] {
     async def callback(
-        request: Request, nd: (str | None) = None, **kwargs: JsonValue
+        request: Request, /, nd: (str | None) = None, **kwargs: JsonValue
     ) -> (TransportResponse | Response) {
         username = request_caller(server, request);
         if requires_auth and not username {
@@ -136,7 +136,7 @@ def _function_callback(
     requires_auth: bool
 ) -> Callable[..., (TransportResponse | Response)] {
     async def callback(
-        request: Request, **kwargs: JsonValue
+        request: Request, /, **kwargs: JsonValue
     ) -> (TransportResponse | Response) {
         username = request_caller(server, request);
         if requires_auth and not username {
@@ -172,7 +172,7 @@ def _function_callback(
 
 
 def _listing(names: list[str], key: str) -> Callable[..., TransportResponse] {
-    async def callback(request: Request, **kwargs: JsonValue) -> TransportResponse {
+    async def callback(request: Request, /, **kwargs: JsonValue) -> TransportResponse {
         return TransportResponse.success(
             data={key: list[str](names)}, meta=Meta(extra={'http_status': 200})
         );
