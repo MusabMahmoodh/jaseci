@@ -260,6 +260,7 @@ obj ManifestBuilder {
         _bundle_object_key: str = "",
         _toolchain_object_key: str = "",
         _pod_binary_sha256: str = "",
+        _venv_snapshot_key: (str | None) = None,
         fleet: (FleetSpec | None) = None,
         gateway_config: (dict[str, any] | None) = None,
         app_overrides: dict[str, dict[str, any]] = {},
@@ -344,6 +345,13 @@ obj ManifestBuilder {
         injector: PvcInjector = selection[0];
         self._toolchain_object_key = str(selection[1]);
         self._pod_binary_sha256 = str(getattr(injector, "_pod_binary_sha256", ""));
+        import from jaclang.scale.injector.pvc_injector { venv_snapshot_key }
+        self._venv_snapshot_key = venv_snapshot_key(
+            k8s_safe_name(self.k8s_config.app_name),
+            injector._bundle_bytes,
+            self._pod_binary_sha256,
+            injector._object_key
+        );
         return injector;
     }
 
@@ -1909,7 +1917,9 @@ obj ManifestBuilder {
             BUNDLE_MOUNT_PATH,
             venv_cache_key
         }
-        venv_key = venv_cache_key(self._injector_object_key());
+        venv_key = self._venv_snapshot_key
+            if self._venv_snapshot_key is not None
+            else venv_cache_key(self._injector_object_key());
         import from jaclang.scale.deploy.target.kubernetes.runtime_bootstrap {
             build_bootstrap_init_container
         }

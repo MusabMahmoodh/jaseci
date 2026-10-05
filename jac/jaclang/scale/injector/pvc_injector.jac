@@ -42,6 +42,72 @@ def venv_cache_key(bundle_object_key: str) -> str {
 }
 
 
+def _bundle_members(bundle_bytes: bytes, names: set[str]) -> dict[str, bytes] {
+    import io;
+    import tarfile;
+    found: dict[str, bytes] = {};
+    with tarfile.open(fileobj=io.BytesIO(bundle_bytes), mode="r:*") as tar {
+        for member in tar {
+            name = member.name.removeprefix("./");
+            if name in names and member.isfile() {
+                handle = tar.extractfile(member);
+                if handle is not None {
+                    found[name] = handle.read();
+                }
+            }
+        }
+    }
+    return found;
+}
+
+
+def venv_snapshot_key(
+    app_name: str, bundle_bytes: bytes, binary_sha256: str, bundle_object_key: str
+) -> str {
+    import hashlib;
+    import json;
+    import tomllib;
+    fallback = venv_cache_key(bundle_object_key);
+    if not bundle_bytes or not binary_sha256 {
+        return fallback;
+    }
+    try {
+        members = _bundle_members(
+            bundle_bytes, {"jac.toml", "jac.lock", "_vendor/VENDOR.json"}
+        );
+        manifest = tomllib.loads(members.get("jac.toml", b"").decode("utf-8"));
+    } except Exception {
+        return fallback;
+    }
+    tables: dict[str, any] = {};
+    for section in ("dependencies", "dev-dependencies") {
+        table = dict(manifest.get(section) or {});
+        if any(name not in ("pypi", "npm") for name in table) {
+            return "";
+        }
+        pypi = dict(table.get("pypi") or {});
+        if any(isinstance(spec, dict) and "path" in spec for spec in pypi.values()) {
+            return fallback;
+        }
+        tables[section] = pypi;
+    }
+    identity = json.dumps(
+        {
+            "binary": binary_sha256,
+            "pypi": tables,
+            "lock": hashlib.sha256(members.get("jac.lock", b"")).hexdigest(),
+            "vendor": hashlib.sha256(
+                members.get("_vendor/VENDOR.json", b"")
+            ).hexdigest()
+        },
+        sort_keys=True,
+        default=str
+    );
+    digest = hashlib.sha256(identity.encode("utf-8")).hexdigest();
+    return "/".join([VENV_CACHE_DIR, app_name, digest + ".tar.gz"]);
+}
+
+
 def bundle_keys_from_pod_spec(pod_spec: dict[str, any]) -> list[str] {
     prefix = f"{BUNDLE_MOUNT_PATH}/";
     keys: list[str] = [];

@@ -764,6 +764,53 @@ test "the installed venv is published by the first boot and restored without rei
 }
 
 
+def _bundle(files: dict[str, str]) -> bytes {
+    buf = io.BytesIO();
+    with tarfile.open(fileobj=buf, mode="w:gz") as tar {
+        for (name, text) in files.items() {
+            data = text.encode("utf-8");
+            info = tarfile.TarInfo(name=name);
+            info.size = len(data);
+            tar.addfile(info, io.BytesIO(data));
+        }
+    }
+    return buf.getvalue();
+}
+
+
+# The venv only depends on what pip installs and the interpreter it installs
+# for, so a deploy that changes nothing but app code must reuse the snapshot.
+test "the venv snapshot key follows the python deps and the binary, not the app code" {
+    import from jaclang.scale.injector.pvc_injector { venv_snapshot_key }
+    toml = '[project]\nname = "shop"\n\n[dependencies.pypi]\nhttpx = ">=0.27"\n';
+    vendor = '{"wheels": ["httpx-0.28.1-py3-none-any.whl"]}';
+    base = {"jac.toml": toml, "_vendor/VENDOR.json": vendor, "main.jac": "with entry {}"};
+    jab_key = "bundles/shop/aaa.jab";
+
+    def key(files: dict[str, str], sha: str = "b1") -> str {
+        return venv_snapshot_key("shop", _bundle(files), sha, jab_key);
+    }
+
+    first = key(base);
+    assert first.startswith("venv-cache/shop/") and first.endswith(".tar.gz") , first;
+    assert key({** base, "main.jac": "with entry { print(1); }"}) == first;
+    assert key({** base, "jac.toml": toml + '\n[scale.kubernetes]\nnamespace = "x"\n'})
+        == first;
+    assert key({** base, "_vendor/VENDOR.json": '{"wheels": ["httpx-0.29.0.whl"]}'})
+        != first;
+    assert key(base, sha="b2") != first;
+    assert key(
+        {** base, "jac.toml": toml + '\n[dependencies.npm]\nreact = "^19"\n'}
+    )
+        == first;
+    with_package = '[project]\nname = "shop"\n\n[dependencies]\n"jaseci/vecdb" = "^2.1"\n';
+    assert key({** base, "jac.toml": with_package}) == "" , "Jac packages need jac install";
+    with_path = toml + 'local = { path = "libs/local" }\n';
+    assert key({** base, "jac.toml": with_path}) == "venv-cache/shop/aaa.tar.gz";
+    assert venv_snapshot_key("shop", b"", "b1", jab_key) == "venv-cache/shop/aaa.tar.gz";
+}
+
+
 test "pod dep installs are routed to the shared-volume venv" {
     script = str(
         build_bootstrap_init_container(KubernetesConfig(), "jaseci/jaclang:dev")["args"][
