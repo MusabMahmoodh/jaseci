@@ -784,7 +784,11 @@ test "the venv snapshot key follows the python deps and the binary, not the app 
     import from jaclang.scale.injector.pvc_injector { venv_snapshot_key }
     toml = '[project]\nname = "shop"\n\n[dependencies.pypi]\nhttpx = ">=0.27"\n';
     vendor = '{"wheels": ["httpx-0.28.1-py3-none-any.whl"]}';
-    base = {"jac.toml": toml, "_vendor/VENDOR.json": vendor, "main.jac": "with entry {}"};
+    base = {
+        "jac.toml": toml,
+        "_vendor/VENDOR.json": vendor,
+        "main.jac": "with entry {}"
+    };
     jab_key = "bundles/shop/aaa.jab";
 
     def key(files: dict[str, str], sha: str = "b1") -> str {
@@ -799,15 +803,14 @@ test "the venv snapshot key follows the python deps and the binary, not the app 
     assert key({** base, "_vendor/VENDOR.json": '{"wheels": ["httpx-0.29.0.whl"]}'})
         != first;
     assert key(base, sha="b2") != first;
-    assert key(
-        {** base, "jac.toml": toml + '\n[dependencies.npm]\nreact = "^19"\n'}
-    )
+    assert key({** base, "jac.toml": toml + '\n[dependencies.npm]\nreact = "^19"\n'})
         == first;
     with_package = '[project]\nname = "shop"\n\n[dependencies]\n"jaseci/vecdb" = "^2.1"\n';
     assert key({** base, "jac.toml": with_package}) == "" , "Jac packages need jac install";
     with_path = toml + 'local = { path = "libs/local" }\n';
     assert key({** base, "jac.toml": with_path}) == "venv-cache/shop/aaa.tar.gz";
-    assert venv_snapshot_key("shop", b"", "b1", jab_key) == "venv-cache/shop/aaa.tar.gz";
+    assert venv_snapshot_key("shop", b"", "b1", jab_key)
+        == "venv-cache/shop/aaa.tar.gz";
 }
 
 

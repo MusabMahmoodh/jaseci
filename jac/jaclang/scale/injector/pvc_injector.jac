@@ -100,8 +100,7 @@ def venv_snapshot_key(
                 members.get("_vendor/VENDOR.json", b"")
             ).hexdigest()
         },
-        sort_keys=True,
-        default=str
+        sort_keys=True
     );
     digest = hashlib.sha256(identity.encode("utf-8")).hexdigest();
     return "/".join([VENV_CACHE_DIR, app_name, digest + ".tar.gz"]);
