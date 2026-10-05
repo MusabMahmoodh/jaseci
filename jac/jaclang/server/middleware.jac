@@ -2,6 +2,11 @@ import logging;
 import time;
 import from jaclang.runtime.exceptions { MissingAnchorError }
 import from jaclang.runtime.runtime { JacRuntime }
+import from jaclang.server.identity.assurance {
+    bind_caller_assurance,
+    release_caller_assurance,
+    token_assurance
+}
 import from jaclang.server.identity.session_cookie {
     apply_session_change,
     cookie_session_token,
@@ -37,22 +42,29 @@ def jwt_middleware(user_manager: UserManager) -> Callable[..., any] {
     async def _middleware(request: Request, call_next: any) -> Response {
         username: (str | None) = None;
         user_root_id: (str | None) = None;
+        assurance: (dict[str, any] | None) = None;
         (token, from_cookie) = presented_token(request);
         if token {
             username = user_manager.validate_jwt_token(token);
             if username {
                 user_root_id = user_manager.get_root_id(username);
+                assurance = token_assurance(token);
             }
         }
         setattr(request.state, 'user_root_id', user_root_id);
         setattr(request.state, 'username', username);
         next_fn: any = call_next;
-        response: Response = await next_fn(request);
-        if from_cookie and username {
-            keep_out_of_shared_caches(response);
+        binding = bind_caller_assurance(assurance);
+        try {
+            response: Response = await next_fn(request);
+            if from_cookie and username {
+                keep_out_of_shared_caches(response);
+            }
+            apply_session_change(request, response);
+            return response;
+        } finally {
+            release_caller_assurance(binding);
         }
-        apply_session_change(request, response);
-        return response;
     }
     return _middleware;
 }
