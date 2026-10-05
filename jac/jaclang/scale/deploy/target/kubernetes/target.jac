@@ -428,8 +428,14 @@ obj KubernetesTarget(KubernetesTargetBase) {
                             companion_app_names is not None
                             and app in companion_app_names
                         );
+                    # restart_count is lifetime: a container that restarted
+                    # while its volume attached and has been Ready since is
+                    # healthy. Only one that is not Ready now is crash-looping.
                     crashing = (
-                        owned and restarts >= 3 and reason not in imagepull_reasons
+                        owned
+                        and restarts >= 3
+                        and not cs.ready
+                        and reason not in imagepull_reasons
                     );
                     if crashing and not pod_crash {
                         pod_crash = str(cs.name);
