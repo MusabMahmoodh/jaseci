@@ -367,10 +367,6 @@ def _deref(lst: list[any]) -> list[any] {
 glob _VACANT = weakref.ref(`type('_Vacated', (), {})()),
      _INDEX_AT: int = 64;
 
-"""Incoming light links of a hub, in connection order, with each source's
-positions indexed by identity so dropping one link is a lookup, not a scan. A
-dropped link is vacated in place (readers already skip dead references), and
-the list compacts each time it doubles, so upkeep is linear in links made."""
 class _InLinks(list) {
     static has __slots__: tuple[str, ...] = ("at", "live", "limit");
     has at: dict[int, list[int]],
