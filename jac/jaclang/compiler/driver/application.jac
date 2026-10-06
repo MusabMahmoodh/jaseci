@@ -11,10 +11,6 @@ glob _FORMAT: int = 9,
      _SKIP: set[str] = {'.jac', '.git', '.venv', 'venv', 'node_modules', '__pycache__'};
 
 def _stamp(path: str, previous: any = None) -> tuple[int, int, str] {
-    """A file's `(mtime_ns, size, sha)`. The sha in `previous` is reused while
-    the stamp still matches, so timestamps only decide whether to rehash. A
-    stamp taken before the file settled is recorded as unusable: a coarse
-    filesystem clock could give a later edit the same mtime.""";
     import from jaclang.compiler.driver.jir { compute_content_sha256 }
     import from jaclang.compiler.driver.bccache { LISTING_SETTLE_NS }
     st = os.stat(path);
@@ -35,7 +31,9 @@ def _stamp(path: str, previous: any = None) -> tuple[int, int, str] {
 }
 
 def _inventory(
-    `root: any, inputs: bool = False, previous: (dict | None) = None
+    `root: any,
+    inputs: bool = False,
+    previous: (dict[str, tuple[int, int, str]] | None) = None
 ) -> dict[str, tuple[int, int, str]] {
     previous = previous or {};
     result: dict[str, tuple[int, int, str]] = {};
