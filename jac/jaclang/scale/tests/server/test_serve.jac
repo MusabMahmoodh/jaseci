@@ -5,6 +5,7 @@ import json;
 import os;
 import socket;
 import subprocess;
+import tempfile;
 import from jaclang.scale.runtime.context.util { jac_executable }
 import time;
 import uuid;
@@ -2126,7 +2127,10 @@ glob SESSION_COOKIE_ENV: str = "JAC_SERVE_AUTH_SESSION_COOKIE";
 
 # The setting is read once, when the server is assembled, so the variable is
 # restored as soon as the client exists and no later test inherits it.
-def session_cookie_client(setting: str | None) -> ScaleTestClient {
+# `in_toml` adds `[serve.auth] session_cookie` to the project's own jac.toml.
+def session_cookie_client(
+    setting: str | None, in_toml: bool | None = None
+) -> ScaleTestClient {
     prior = os.environ.get(SESSION_COOKIE_ENV);
     if setting is None {
         os.environ.pop(SESSION_COOKIE_ENV, None);
@@ -2134,7 +2138,27 @@ def session_cookie_client(setting: str | None) -> ScaleTestClient {
         os.environ[SESSION_COOKIE_ENV] = setting;
     }
     try {
-        return make_client("restspec_fixtures.jac");
+        if in_toml is None {
+            return make_client("restspec_fixtures.jac");
+        }
+        tmp = Path(tempfile.mkdtemp());
+        for f in sv_fixtures_dir.iterdir() {
+            if f.is_file() {
+                shutil.copy2(f, tmp / f.name);
+            }
+        }
+        toml = tmp / "jac.toml";
+        toml.write_text(
+            toml.read_text()
+                + "\n[serve.auth]\nsession_cookie = "
+                + ("true" if in_toml else "false")
+                + "\n"
+        );
+        client = ScaleTestClient.from_file(
+            str(sv_fixtures_dir / "restspec_fixtures.jac"), base_path=str(tmp)
+        );
+        client._tmp_dir = str(tmp);
+        return client;
     } finally {
         if prior is None {
             os.environ.pop(SESSION_COOKIE_ENV, None);
@@ -2162,7 +2186,7 @@ def me_user_id(response: any) -> str {
 }
 
 test "session cookie: login sets it and it authorizes safe requests only" {
-    client = session_cookie_client("1");
+    client = session_cookie_client(None, in_toml=True);
     try {
         name_a = f"cookie_a_{uuid.uuid4().hex[:8]}";
         name_b = f"cookie_b_{uuid.uuid4().hex[:8]}";
@@ -2635,6 +2659,26 @@ test "session cookie: off unless the deployment opts in" {
         assert logout.headers.get("Set-Cookie") is None;
     } finally {
         client.close();
+    }
+}
+
+test "session cookie: the env variable overrides [serve.auth] either way" {
+    for (env_setting, in_toml, expect_cookie) in [
+        ("0", True, False),
+        ("1", False, True)
+    ] {
+        client = session_cookie_client(env_setting, in_toml=in_toml);
+        try {
+            name = f"cookie_env_{uuid.uuid4().hex[:8]}";
+            registered = client.post(
+                "/user/register", json=register_payload(name, "Pass!99")
+            );
+            assert registered.status_code == 201 , registered.text;
+            set_cookie = registered.headers.get("Set-Cookie");
+            assert (set_cookie is not None) == expect_cookie , f"env {env_setting} over toml {in_toml}: {set_cookie}";
+        } finally {
+            client.close();
+        }
     }
 }
 
