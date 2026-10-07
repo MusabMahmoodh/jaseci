@@ -133,9 +133,7 @@ def runtime_container_env -> list[dict[str, str]] {
 
 
 def build_bootstrap_init_container(
-    k8s_config: KubernetesConfig,
-    base_image: str,
-    unpack_script: str = ""
+    k8s_config: KubernetesConfig, base_image: str, unpack_script: str = ""
 ) -> dict[str, any] {
     import from jaclang.scale.injector.binary { OFFICIAL_IMAGE }
     prefer_image_binary = base_image.startswith(f"{OFFICIAL_IMAGE}:experimental-");
