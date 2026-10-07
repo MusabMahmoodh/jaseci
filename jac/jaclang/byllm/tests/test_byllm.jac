@@ -1336,6 +1336,12 @@ test "litellm settings and load hooks apply when litellm is first imported" {
         "print('message=' + str(isinstance(msg, litellm.types.utils.Message)))\n"
         "print('stand_in=' + str(isinstance(msg, llm.LiteLLMMessage)))\n"
         "print('proxy_same=' + str(llm.litellm.completion is litellm.completion))\n"
+        "from jaclang.byllm.exceptions import LLMTimeout\n"
+        "print('timeout_is_provider=' + str(issubclass(LLMTimeout, litellm.Timeout)))\n"
+        "try:\n"
+        "    raise LLMTimeout(message='slow', model='m')\n"
+        "except litellm.Timeout as caught:\n"
+        "    print('caught_status=' + str(caught.status_code))\n"
     );
     assert "seen=litellm" in out , out;
     assert "drop_params=True" in out , out;
@@ -1343,4 +1349,6 @@ test "litellm settings and load hooks apply when litellm is first imported" {
     assert "message=True" in out , out;
     assert "stand_in=True" in out , out;
     assert "proxy_same=True" in out , out;
+    assert "timeout_is_provider=True" in out , out;
+    assert "caught_status=408" in out , out;
 }
