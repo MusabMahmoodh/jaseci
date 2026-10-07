@@ -244,8 +244,6 @@ def qualified_module(path: str, application: PreparedApplication) -> str {
 }
 
 def module_index(application: PreparedApplication) -> ModuleIndex {
-    # Modules are only added while a revision is assembled and never removed,
-    # so the sizes tell whether the index is current.
     size = (len(application.code), len(application.origins));
     index = application.index;
     if index is not None and index.size == size {
