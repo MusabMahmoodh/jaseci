@@ -829,7 +829,9 @@ test "a source change recompiles only the changed module and its importers" {
             (compiled, prepared) = _compiled(path, tmp);
             assert compiled == {'base', 'mid', 'main'} , f"a base edit compiled {compiled}";
             surface = prepared.manifests[str(path.resolve())]['surface'];
-            assert {'Leaf', 'top', 'mid_value'} <= set(surface) , f"surface {sorted(surface)}";
+            assert {'Leaf', 'top', 'mid_value'} <= set(surface) , f"surface {sorted(
+                surface
+            )}";
             module: any = initialize_application(prepared);
             assert module.top() == 6;
             forget(str(path));

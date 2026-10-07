@@ -328,7 +328,11 @@ def _manifest(
             for m in _project_modules(program, `root).values()
             if m not in sources
         ]
-        + [r for r in restored.values() if r not in sources];
+        + [
+            r
+            for r in restored.values()
+            if r not in sources
+        ];
     for source in ordered {
         contribution = _contribution(source);
         if contribution is None {
