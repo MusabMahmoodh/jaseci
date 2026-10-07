@@ -5,7 +5,6 @@ import from jaclang.jac0core.ext_registry { base_stem }
 import type from jaclang.runtime.semantic { Info }
 import type from jaclang.client.compiler { ViteCompiler }
 
-# Reverse lookups over an application's modules, built once per set of modules.
 obj ModuleIndex {
     has size: tuple[int, int],
         names: dict[str, str] = {},
@@ -244,9 +243,9 @@ def qualified_module(path: str, application: PreparedApplication) -> str {
     return f'{namespace}.{relative}' if relative else namespace;
 }
 
-# Rebuilt when modules are added, which only happens while a revision is
-# assembled; a published revision never loses entries.
 def module_index(application: PreparedApplication) -> ModuleIndex {
+    # Modules are only added while a revision is assembled and never removed,
+    # so the sizes tell whether the index is current.
     size = (len(application.code), len(application.origins));
     index = application.index;
     if index is not None and index.size == size {
