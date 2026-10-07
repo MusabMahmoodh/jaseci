@@ -16,8 +16,6 @@ glob BUNDLE_VOLUME_NAME: str = "jac-bundles",
      BUNDLE_MOUNT_PATH: str = "/jac-bundles",
      PVC_BOOTSTRAP_NAME: str = "jac-pvc-bootstrap";
 
-glob VENV_CACHE_DIR: str = "venv-cache";
-
 glob RUNTIME_UID: int = 1000,
      RUNTIME_GID: int = 1000,
      VOLUME_PERMS_NAME: str = "jac-volume-perms";
@@ -30,80 +28,6 @@ def bundle_pvc_name(app_name: str) -> str {
 
 def bundle_pvc_path(object_key: str) -> str {
     return f"{BUNDLE_MOUNT_PATH}/{object_key}";
-}
-
-
-def venv_cache_key(bundle_object_key: str) -> str {
-    parts = bundle_object_key.split("/");
-    if len(parts) != 3 or not parts[2].endswith(".jab") {
-        return "";
-    }
-    return "/".join([VENV_CACHE_DIR, parts[1], parts[2][:-4] + ".tar.gz"]);
-}
-
-
-def _bundle_members(bundle_bytes: bytes, names: set[str]) -> dict[str, bytes] {
-    import io;
-    import tarfile;
-    found: dict[str, bytes] = {};
-    with tarfile.open(fileobj=io.BytesIO(bundle_bytes), mode="r:*") as tar {
-        for member in tar {
-            name = member.name.removeprefix("./");
-            if name in names and member.isfile() {
-                handle = tar.extractfile(member);
-                if handle is not None {
-                    found[name] = handle.read();
-                }
-            }
-        }
-    }
-    return found;
-}
-
-
-def venv_snapshot_key(
-    app_name: str, bundle_bytes: bytes, binary_sha256: str, bundle_object_key: str
-) -> str {
-    import hashlib;
-    import json;
-    import tomllib;
-    fallback = venv_cache_key(bundle_object_key);
-    if not bundle_bytes or not binary_sha256 {
-        return fallback;
-    }
-    try {
-        members = _bundle_members(
-            bundle_bytes, {"jac.toml", "jac.lock", "_vendor/VENDOR.json"}
-        );
-        manifest = tomllib.loads(members.get("jac.toml", b"").decode("utf-8"));
-    } except Exception {
-        return fallback;
-    }
-    tables: dict[str, any] = {};
-    for section in ("dependencies", "dev-dependencies") {
-        table = dict(manifest.get(section) or {});
-        if any(name not in ("pypi", "npm") for name in table) {
-            return "";
-        }
-        pypi = dict(table.get("pypi") or {});
-        if any(isinstance(spec, dict) and "path" in spec for spec in pypi.values()) {
-            return fallback;
-        }
-        tables[section] = pypi;
-    }
-    identity = json.dumps(
-        {
-            "binary": binary_sha256,
-            "pypi": tables,
-            "lock": hashlib.sha256(members.get("jac.lock", b"")).hexdigest(),
-            "vendor": hashlib.sha256(
-                members.get("_vendor/VENDOR.json", b"")
-            ).hexdigest()
-        },
-        sort_keys=True
-    );
-    digest = hashlib.sha256(identity.encode("utf-8")).hexdigest();
-    return "/".join([VENV_CACHE_DIR, app_name, digest + ".tar.gz"]);
 }
 
 
