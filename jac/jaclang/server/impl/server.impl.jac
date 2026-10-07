@@ -540,7 +540,8 @@ impl ModuleIntrospector._resolve_declared(rel: str, name: str) -> any {
             src_path = source_for_origin(application, rel);
         } except Exception {}
     }
-    if own_file and os.path.abspath(src_path) == os.path.abspath(own_file) {
+    target = os.path.abspath(src_path);
+    if own_file and target == os.path.abspath(own_file) {
         return getattr(self._module, name, None);
     }
     import from jaclang.runtime.prepared { load_prepared_module }
@@ -549,7 +550,7 @@ impl ModuleIntrospector._resolve_declared(rel: str, name: str) -> any {
     }
     for loaded in list(Jac.loaded_modules.values()) {
         f = loaded?.__file__;
-        if f and os.path.abspath(f) == os.path.abspath(src_path) {
+        if f and os.path.abspath(f) == target {
             sym = getattr(loaded, name, None);
             if sym is not None {
                 return sym;
