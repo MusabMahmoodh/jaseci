@@ -167,26 +167,6 @@ def module_demoted_native(path: str, prog: (JacProgram | None) = None) -> bool {
 }
 
 
-def cached_native_target(resolved: str, prog: JacProgram) -> (bool | None) {
-    import from jaclang.compiler.placement.placement_export { summary_from_bytes }
-    try {
-        found = prog.iface_registry().ensure(resolved, compile_on_miss=False);
-    } except Exception {
-        return None;
-    }
-    if found is None or found.placement is None {
-        return None;
-    }
-    summary = summary_from_bytes(
-        found.placement,
-        path_mapper=found.paths.resolve if found.paths is not None else None
-    );
-    if summary is None or summary.native_verdict_code {
-        return None;
-    }
-    return summary.decided == 'native' or summary.native_anchor;
-}
-
 def plain_native_import_target(nd: uni.Import, prog: JacProgram) -> (str | None) {
     import from jaclang.compiler.placement.placement_pins {
         module_native_demoted,
@@ -221,11 +201,19 @@ def plain_native_import_target(nd: uni.Import, prog: JacProgram) -> (str | None)
         return resolved;
     }
     hub = prog.mod.hub;
-    target = (hub.get(resolved) or hub.get(real_resolved)) if hub else None;
+    target: (uni.Module | None) = None;
+    if resolved in hub {
+        target = hub[resolved];
+    } elif real_resolved in hub {
+        target = hub[real_resolved];
+    }
     if target is None {
-        cached = cached_native_target(real_resolved, prog);
-        if cached is not None {
-            return resolved if cached else None;
+        summary = prog.analysis.placement_summaries.get(os.path.abspath(real_resolved));
+        if summary is not None and not summary.native_verdict_code {
+            if summary.decided == 'native' or summary.native_anchor {
+                return resolved;
+            }
+            return None;
         }
         target = hub_module_for_path(resolved, prog);
     }
