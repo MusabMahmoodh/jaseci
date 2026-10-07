@@ -386,7 +386,7 @@ obj WebhookExtension(ServerExtension) {
             walker_name = rec.name;
             if server.introspector.is_scheduled(walker_name)
                 or server.introspector.walker_protocol(walker_name)
-                != APIProtocol.WEBHOOK {
+                    != APIProtocol.WEBHOOK {
                 continue;
             }
             scheme = walker_scheme(server, walker_name);

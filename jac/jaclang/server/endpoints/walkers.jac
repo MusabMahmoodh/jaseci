@@ -265,11 +265,7 @@ def walker_callback(
             return _unavailable('Walker', walker_name);
         }
         mismatch = check_endpoint_contract(
-            request,
-            walker_cls,
-            "walker",
-            walker_name,
-            consumer_app()
+            request, walker_cls, "walker", walker_name, consumer_app()
         );
         if mismatch is not None {
             return mismatch;
@@ -313,7 +309,7 @@ def register_walker_endpoints(server: JacAPIServer) {
         restspec: any = introspector.route_spec(walker_name);
         if restspec?.protocol
             and APIProtocol(restspec.protocol)
-            in (APIProtocol.WEBHOOK, APIProtocol.WEBSOCKET) {
+                in (APIProtocol.WEBHOOK, APIProtocol.WEBSOCKET) {
             continue;
         }
         method: HTTPMethod = (
@@ -366,7 +362,11 @@ def _walker_parameter_source(
             return [];
         }
         return walker_parameters(
-            server, walker_name, walker_cls, invoke_on_root=invoke_on_root, method=method
+            server,
+            walker_name,
+            walker_cls,
+            invoke_on_root=invoke_on_root,
+            method=method
         );
     }
     return source;
@@ -434,11 +434,7 @@ def function_callback(
             return _unavailable('Function', func_name);
         }
         mismatch = check_endpoint_contract(
-            request,
-            func_obj,
-            "func",
-            func_name,
-            consumer_app()
+            request, func_obj, "func", func_name, consumer_app()
         );
         if mismatch is not None {
             return mismatch;
@@ -451,10 +447,7 @@ def function_callback(
         }
         logger.debug(f"function {func_name}: {sorted(kwargs)}");
         result = await server.execution_manager.execute_function(
-            func_obj,
-            kwargs,
-            caller,
-            serialize_result=not raw_body
+            func_obj, kwargs, caller, serialize_result=not raw_body
         );
         if isgenerator(result) or isinstance(result, AsyncGenerator) {
             return _stream(result);
