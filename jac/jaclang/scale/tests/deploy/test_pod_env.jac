@@ -385,7 +385,7 @@ test "app pods unpack and bootstrap in one init container and probe for a fast f
         * container["startupProbe"]["failureThreshold"]
         == 900;
     assert container["readinessProbe"]["initialDelaySeconds"] == 0;
-    assert "venv-cache/jac-shop/aaa.tar.gz" in bundle_keys_from_pod_spec(cart);
+    assert "bundles/jac-shop/aaa.jab" in bundle_keys_from_pod_spec(cart);
 }
 
 
