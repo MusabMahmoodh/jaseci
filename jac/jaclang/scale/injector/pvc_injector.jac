@@ -193,7 +193,7 @@ def build_loader_pod(
 
 
 def _unpack_cmd(path: str, image_binary_sha256: str) -> str {
-    untar = "tar xzf " + path + " -C " + APP_MOUNT_PATH + "; ";
+    untar = "tar xzf " + path + " -C " + APP_MOUNT_PATH;
     if not image_binary_sha256 {
         return untar;
     }
@@ -205,7 +205,7 @@ def _unpack_cmd(path: str, image_binary_sha256: str) -> str {
         + image_binary_sha256
         + "\" ]; then :; else "
         + untar
-        + "fi; "
+        + "; fi"
     );
 }
 
@@ -214,8 +214,9 @@ def pvc_unpack_script(
     bundle_paths: list[str], skip_when_image_binary: (dict[str, str] | None) = None
 ) -> str {
     skips = skip_when_image_binary or {};
-    untars = "".join([_unpack_cmd(p, skips.get(p, "")) for p in bundle_paths]);
-    return "set -eu; " + untars + ensure_jac_toml_cmd();
+    steps = [_unpack_cmd(p, skips.get(p, "")) for p in bundle_paths];
+    steps.append("{ " + ensure_jac_toml_cmd() + "; }");
+    return "set -eu; " + " && ".join(steps);
 }
 
 

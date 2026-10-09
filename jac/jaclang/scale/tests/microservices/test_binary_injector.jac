@@ -619,9 +619,10 @@ test "bootstrap reuses the image binary only on a checksum match" {
 }
 
 
-def _boot_rig(image_payload: bytes, shipped_payload: bytes) -> dict[str, str] {
+def _boot_rig(
+    image_payload: bytes, shipped_payload: bytes, bundle_payload: (bytes | None) = None
+) -> dict[str, str] {
     import subprocess;
-    import from jaclang.scale.injector.pvc_injector { build_pvc_init_container }
     rig_dir = tempfile.mkdtemp();
     image_bin = os.path.join(rig_dir, "image-jac");
     with open(image_bin, "wb") as handle {
@@ -642,7 +643,7 @@ def _boot_rig(image_payload: bytes, shipped_payload: bytes) -> dict[str, str] {
         tar.addfile(info, io.BytesIO(b"pass\n"));
     }
     with open(os.path.join(bundles, "bundles", "orders", "aaa.jab"), "wb") as handle {
-        handle.write(buf.getvalue());
+        handle.write(buf.getvalue() if bundle_payload is None else bundle_payload);
     }
     with open(
         os.path.join(bundles, "toolchain", "orders", "bbb.tar.gz"), "wb"
@@ -662,10 +663,21 @@ def _boot_rig(image_payload: bytes, shipped_payload: bytes) -> dict[str, str] {
         );
     }
 
-    unpack = build_pvc_init_container(
-        "img", injector._unpack_bundle_paths(), injector._skip_when_image_binary()
-    )["args"][0];
-    subprocess.run(["sh", "-c", localize(unpack)], check=True);
+    continued = os.path.join(rig_dir, "continued");
+    unpacked = subprocess.run(
+        [
+            "bash",
+            "-c",
+            "( " + localize(injector.unpack_script()) + " ) && touch " + continued
+        ]
+    );
+    if unpacked.returncode != 0 {
+        return {
+            "app": app,
+            "unpack_rc": str(unpacked.returncode),
+            "continued": str(os.path.exists(continued))
+        };
+    }
     select_cmd = [
         c
         for c in build_runtime_install_commands(KubernetesConfig())
@@ -679,7 +691,9 @@ def _boot_rig(image_payload: bytes, shipped_payload: bytes) -> dict[str, str] {
     return {
         "app": app,
         "image_bin": image_bin,
-        "pod_jac": os.path.join(home, ".local", "bin", "jac")
+        "pod_jac": os.path.join(home, ".local", "bin", "jac"),
+        "unpack_rc": "0",
+        "continued": str(os.path.exists(continued))
     };
 }
 
@@ -687,6 +701,7 @@ def _boot_rig(image_payload: bytes, shipped_payload: bytes) -> dict[str, str] {
 test "an image binary that matches the shipped one skips the toolchain unpack" {
     payload = b"#!/bin/sh\necho jac\n";
     rig = _boot_rig(payload, payload);
+    assert rig["continued"] == "True";
     assert os.path.isfile(os.path.join(rig["app"], "main.jac"));
     assert not os.path.exists(os.path.join(rig["app"], TOOLCHAIN_SUBDIR));
     assert os.path.islink(rig["pod_jac"]);
@@ -702,6 +717,15 @@ test "an image binary that differs still gets the shipped toolchain binary" {
     with open(rig["pod_jac"], "rb") as handle {
         assert handle.read() == b"#!/bin/sh\necho shipped\n";
     }
+}
+
+
+test "a bundle that fails to unpack stops the bootstrap chain" {
+    payload = b"#!/bin/sh\necho jac\n";
+    rig = _boot_rig(payload, payload, b"not a tarball");
+    assert rig["unpack_rc"] != "0";
+    assert rig["continued"] == "False";
+    assert not os.path.exists(os.path.join(rig["app"], "jac.toml"));
 }
 
 
