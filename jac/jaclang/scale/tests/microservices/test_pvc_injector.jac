@@ -245,6 +245,37 @@ test "bundle keys are read from the bootstrap container that unpacks them" {
 }
 
 
+test "a bundle that fails to unpack stops the folded bootstrap container" {
+    import subprocess;
+    import from jaclang.scale.injector.bundle { APP_MOUNT_PATH }
+    import from jaclang.scale.injector.pvc_injector { pvc_unpack_script }
+    import from jaclang.scale.deploy.target.kubernetes.runtime_bootstrap {
+        build_bootstrap_init_container
+    }
+    import from jaclang.scale.deploy.target.kubernetes.kubernetes_config {
+        KubernetesConfig
+    }
+    with tempfile.TemporaryDirectory() as root {
+        missing = os.path.join(root, "bundles", "missing.jab");
+        container = build_bootstrap_init_container(
+            KubernetesConfig(),
+            "python:3.12-slim",
+            unpack_script=pvc_unpack_script([missing])
+        );
+        script = container["args"][0].replace(APP_MOUNT_PATH, root);
+        unpack = script.split(" && ")[0];
+        assert unpack.startswith("( ");
+        result = subprocess.run(
+            container["command"] + [unpack + " && echo bootstrap-continued"],
+            capture_output=True,
+            text=True
+        );
+        assert result.returncode != 0;
+        assert "bootstrap-continued" not in result.stdout;
+    }
+}
+
+
 test "a pod spec with no bootstrap container references no bundles" {
     assert bundle_keys_from_pod_spec({}) == [];
     assert bundle_keys_from_pod_spec(

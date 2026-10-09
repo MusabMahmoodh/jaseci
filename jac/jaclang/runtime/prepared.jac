@@ -54,6 +54,7 @@ def publish(application: PreparedApplication) {
     }
     import from jaclang.data.type_identity { index_application }
     index_application(application);
+    _realpaths.clear();
     _applications[os.path.realpath(application.entry)] = application;
     for child in application.applications {
         index_application(child);

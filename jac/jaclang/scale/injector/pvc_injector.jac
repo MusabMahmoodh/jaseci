@@ -193,7 +193,7 @@ def build_loader_pod(
 
 
 def _unpack_cmd(path: str, image_binary_sha256: str) -> str {
-    untar = "tar xzf " + path + " -C " + APP_MOUNT_PATH + "; ";
+    untar = "tar xzf " + path + " -C " + APP_MOUNT_PATH + " || exit 1; ";
     if not image_binary_sha256 {
         return untar;
     }
