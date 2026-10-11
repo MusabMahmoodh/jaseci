@@ -888,3 +888,35 @@ test "request loop: a COMMIT that never succeeds is re-run up to conflict_max_at
         _restore_read_tier(prior);
     }
 }
+
+
+test "request loop: ten concurrent writers to one node all land" {
+    with TemporaryDirectory() as td {
+        (exec_mgr, walkers, mod) = _vote_app(td);
+        seeded = _spawn(exec_mgr, walkers["SeedCounter"]);
+        assert "error" not in seeded , f"seeding failed: {seeded}";
+        ambient = JacRuntime.get_context();
+        async def one -> any {
+            with RequestScope.open(ambient.base_path_dir, ambient.full_target_path) {
+                return await exec_mgr.spawn_walker(
+                    walkers["Bump"], {"hold": 0.05}, "voter"
+                );
+            }
+        }
+        async def burst -> any {
+            return await asyncio.gather(*[one() for _ in range(10)]);
+        }
+        results = _as_any(asyncio.run(burst()));
+        refused = [
+            r
+            for r in results
+            if "error" in r
+        ];
+        assert not refused , (
+            f"{len(refused)} of 10 writers to one counter were refused: the "
+            f"conflict re-runs collide again instead of draining. First: {refused[0]}"
+        );
+        final = _spawn(exec_mgr, walkers["ReadCounter"]);
+        assert final.get("reports") == [10] , f"every accepted write must land once: {final}";
+    }
+}
