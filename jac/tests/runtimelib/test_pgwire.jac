@@ -22,6 +22,7 @@ import from jaclang.data.pgwire {
     _array_literal,
     _named_to_positional,
     _parse_error_fields,
+    _rewrite_named,
     _scram_proofs
 }
 
@@ -81,9 +82,18 @@ test "error fields parse into the sqlstate dict shape" {
 
 test "one named-param rewrite per text and bound-name set" {
     sql = "SELECT :a, :b FROM t WHERE c = ':a'";
+    rewrite: any = _rewrite_named;
+    rewrite.cache_clear();
     (first, args1) = _named_to_positional(sql, {'a': 1, 'b': 2});
     (again, args2) = _named_to_positional(sql, {'b': 'y', 'a': 'x'});
+    reused = rewrite.cache_info();
+    assert (reused.misses, reused.hits) == (1, 1) , (
+        f"the same text and names must be rewritten once: {reused}"
+    );
     (partial, args3) = _named_to_positional(sql, {'b': 3});
+    assert rewrite.cache_info().misses == 2 , (
+        'a different bound-name set must not reuse the rewrite'
+    );
     assert first == again == "SELECT $1, $2 FROM t WHERE c = ':a'";
     assert args1 == [1, 2] and args2 == ['x', 'y'];
     assert partial == "SELECT :a, $1 FROM t WHERE c = ':a'";
