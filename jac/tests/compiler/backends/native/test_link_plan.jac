@@ -717,6 +717,39 @@ test "a cycle unit that imports a demoted name without calling it keeps its sing
     }
 }
 
+"""A package whose `__init__.jac` only re-exports defines nothing to link. A
+type-only import of a name through it links the unit that defines the name,
+as a value import through it does."""
+test "a type-only import through a re-exporting package links the unit behind it" {
+    with tempfile.TemporaryDirectory(prefix="jac-native-surface-") as root_dir {
+        pkg = Path(root_dir) / "shapes";
+        pkg.mkdir();
+        (pkg / "__init__.jac").write_text("import from shapes.point { Point }\n");
+        (pkg / "point.jac").write_text(
+            "obj Point {\n    has x: int = 0;\n}\n\n"
+                + "def make_point(x: int) -> Point {\n    return Point(x=x);\n}\n"
+        );
+        main = Path(root_dir) / "main.jac";
+        main.write_text(
+            "import type from shapes { Point }\n"
+                + "import from shapes.point { make_point }\n\n"
+                + "def x_of(p: Point) -> int {\n    return p.x;\n}\n\n"
+                + "with entry {\n    print(x_of(make_point(7)));\n}\n"
+        );
+        prog = JacProgram();
+        plan = build_link_plan(prog, [str(main)], _opts());
+        paths = [unit.path for unit in plan.units];
+        assert str((pkg / "__init__.jac").resolve()) not in paths , paths;
+        assert str((pkg / "point.jac").resolve()) in paths , paths;
+        if _can_link_host() {
+            output = str(Path(root_dir) / "surface");
+            link_artifact(plan, output, ArtifactKind.EXECUTABLE);
+            run = subprocess.run([output], capture_output=True, text=True, timeout=10);
+            assert run.returncode == 0 and run.stdout.strip() == "7" , run.stderr;
+        }
+    }
+}
+
 def _target_object(triple: str, text: str) -> bytes {
     import jaclang.compiler.backends.native.llvm.binding as llvm;
     llvm.initialize_all_targets();
