@@ -717,11 +717,15 @@ test "a cycle unit that imports a demoted name without calling it keeps its sing
     }
 }
 
-"""A package whose `__init__.jac` only re-exports defines nothing to link. A
-type-only import of a name through it links the unit that defines the name,
-as a value import through it does."""
+"""A native package whose `__init__.jac` only re-exports defines nothing to
+link. A type-only import of a name through it links the unit that defines
+the name, as a value import through it does."""
 test "a type-only import through a re-exporting package links the unit behind it" {
     with tempfile.TemporaryDirectory(prefix="jac-native-surface-") as root_dir {
+        (Path(root_dir) / "jac.toml").write_text(
+            '[project]\nname = "surface"\n\n[placement.pins]\n'
+                + 'shapes = "native"\n"shapes.point" = "native"\n'
+        );
         pkg = Path(root_dir) / "shapes";
         pkg.mkdir();
         (pkg / "__init__.jac").write_text("import from shapes.point { Point }\n");
